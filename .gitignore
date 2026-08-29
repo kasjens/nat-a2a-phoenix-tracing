@@ -8,3 +8,6 @@ __pycache__/
 .idea/
 .vscode/
 demo-script.md
+
+# local editable install of plugin/
+*.egg-info/

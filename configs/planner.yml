@@ -12,16 +12,33 @@ general:
 llms:
   nim_llm:
     _type: nim
-    model_name: meta/llama-3.3-70b-instruct
+    model_name: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
+    # Model choice is load-bearing here, and most of the catalog does not work:
+    #   - meta/llama-3.3-70b-instruct (the original pin) is retired -> HTTP 410 Gone
+    #   - gpt-oss-20b returns an empty `content` -> ReActAgentParsingFailedError
+    #   - nemotron-3-super / -ultra answer with bare JSON, not Thought:/Action:
+    #   - gpt-oss-120b works but is slow enough to trip the A2A task_timeout
+    # This one emits clean ReAct text and a final answer with no reasoning preamble.
+    # Leave its reasoning ON: nat accepts `chat_template_kwargs: {enable_thinking: false}`
+    # (NIMModelConfig is extra="allow" and forwards unknown keys to ChatNVIDIA), but with
+    # reasoning off the agent stopped converging and just looped to max_tool_calls.
     temperature: 0.0
-    max_tokens: 1024
+    # Reasoning models spend part of this budget before emitting any answer. At 1024,
+    # gpt-oss-20b returned an empty completion and the agent died with
+    # ReActAgentParsingFailedError "LLM output: ''". Leave headroom.
+    max_tokens: 4096
 
 function_groups:
   researcher:
-    _type: a2a_client
+    _type: a2a_client_shared   # see plugin/ -- stock a2a_client is per-user and unusable here
     url: http://localhost:9002
-    task_timeout: 120  # seconds
-    include_skills_in_description: true
+    # The researcher runs a full ReAct loop with Wikipedia lookups behind this one call.
+    # At 120s it tripped A2AClientTimeoutError mid-demo. Give it real headroom.
+    task_timeout: 600  # seconds
+    # false on purpose: the skill blurb embeds wiki_search's docstring, which documents a
+    # parameter named `question`. The A2A tool's own argument is `query`, and the planner
+    # kept copying the wrong name and burning retries on InputArgsSchema errors.
+    include_skills_in_description: false
 
 functions:
   current_datetime:
@@ -34,4 +51,8 @@ workflow:
     - researcher
     - current_datetime
   max_tool_calls: 8
+  # Reasoning models on this endpoint intermittently return an empty `content` (the turn
+  # lands in `reasoning_content`), which NAT reports as ReActAgentParsingFailedError
+  # "LLM output: ''". NAT's `thinking` switch is gated to Nemotron models, so retry instead.
+  parse_agent_response_max_retries: 3
   verbose: true

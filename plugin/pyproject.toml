@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nat-demo-shims"
+version = "0.1.0"
+description = "Compatibility shims required to run the NAT + A2A + Phoenix demo on nvidia-nat 1.8.0"
+requires-python = ">=3.11"
+dependencies = ["nvidia-nat-a2a==1.8.0"]
+
+[project.entry-points."nat.components"]
+nat_demo_a2a_shared = "nat_demo_shims.a2a_shared"
+nat_demo_wikipedia_ua = "nat_demo_shims.wikipedia_ua"
+
+[tool.setuptools]
+packages = ["nat_demo_shims"]

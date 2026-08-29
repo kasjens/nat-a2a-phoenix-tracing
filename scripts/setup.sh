@@ -7,6 +7,12 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 NAT_VERSION="1.8.0"
+
+# nat's CLI prints U+2713 / U+2717 status glyphs. Under a non-UTF-8 locale
+# (LANG=C, minimal containers) that raises UnicodeEncodeError inside click and
+# nat exits 1 even when the config is valid.
+export PYTHONIOENCODING=utf-8
+
 ok()   { printf '  \033[32mok\033[0m   %s\n' "$1"; }
 warn() { printf '  \033[33mwarn\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31mfail\033[0m %s\n' "$1"; exit 1; }
@@ -73,6 +79,10 @@ pip install --upgrade pip --quiet
 pip install --quiet "nvidia-nat[phoenix,langchain,a2a]==${NAT_VERSION}"
 ok "nvidia-nat ${NAT_VERSION} + phoenix, langchain, a2a"
 
+# Two compatibility shims the demo cannot run without. See plugin/ for the why.
+pip install --quiet -e ./plugin
+ok "nat-demo-shims (a2a_client_shared + wikipedia user-agent)"
+
 # --- Phoenix --------------------------------------------------------------
 echo
 echo "Phoenix"
@@ -107,7 +117,7 @@ Ready. Two terminals:
 
   # terminal 1
   source .venv/bin/activate
-  nat start --config_file configs/researcher.yml
+  nat start a2a --config_file configs/researcher.yml
 
   # terminal 2
   source .venv/bin/activate

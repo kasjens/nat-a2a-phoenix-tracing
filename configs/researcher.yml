@@ -1,10 +1,11 @@
 # Agent B — the "researcher". Exposed as an A2A server on :9002.
-# Start with:  nat start --config_file configs/researcher.yml
+# Start with:  nat start a2a --config_file configs/researcher.yml
 
 general:
   front_end:
     _type: a2a
-    host: 0.0.0.0
+    host: 127.0.0.1   # NOT cosmetic: the agent card advertises this host, and the
+                      # A2A client dials it. 0.0.0.0 is not a connectable address on Windows.
     port: 9002
     name: researcher-agent
     description: >-
@@ -21,9 +22,21 @@ general:
 llms:
   nim_llm:
     _type: nim
-    model_name: meta/llama-3.3-70b-instruct
+    model_name: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
+    # Model choice is load-bearing here, and most of the catalog does not work:
+    #   - meta/llama-3.3-70b-instruct (the original pin) is retired -> HTTP 410 Gone
+    #   - gpt-oss-20b returns an empty `content` -> ReActAgentParsingFailedError
+    #   - nemotron-3-super / -ultra answer with bare JSON, not Thought:/Action:
+    #   - gpt-oss-120b works but is slow enough to trip the A2A task_timeout
+    # This one emits clean ReAct text and a final answer with no reasoning preamble.
+    # Leave its reasoning ON: nat accepts `chat_template_kwargs: {enable_thinking: false}`
+    # (NIMModelConfig is extra="allow" and forwards unknown keys to ChatNVIDIA), but with
+    # reasoning off the agent stopped converging and just looped to max_tool_calls.
     temperature: 0.0
-    max_tokens: 1024
+    # Reasoning models spend part of this budget before emitting any answer. At 1024,
+    # gpt-oss-20b returned an empty completion and the agent died with
+    # ReActAgentParsingFailedError "LLM output: ''". Leave headroom.
+    max_tokens: 4096
 
 functions:
   wiki_search:
@@ -36,4 +49,14 @@ workflow:
   tool_names:
     - wiki_search
   max_tool_calls: 6
+  # Reasoning models on this endpoint intermittently return an empty `content` (the turn
+  # lands in `reasoning_content`), which NAT reports as ReActAgentParsingFailedError
+  # "LLM output: ''". NAT's `thinking` switch is gated to Nemotron models, so retry instead.
+  parse_agent_response_max_retries: 3
+  # Without this the model answers well-known questions from memory, the trace has no
+  # wiki_search span at all, and beat 1 has nothing to show.
+  additional_instructions: >-
+    Always call wiki_search before you answer. Never answer from memory, however confident
+    you are: every fact in your final answer must come from a wiki_search result in this
+    conversation. If the searches return nothing useful, say so plainly.
   verbose: true
