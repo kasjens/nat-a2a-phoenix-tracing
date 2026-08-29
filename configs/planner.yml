@@ -1,0 +1,37 @@
+# Agent A — the "planner". Calls the researcher over A2A as a tool.
+# Run with:  nat run --config_file configs/planner.yml --input "..."
+
+general:
+  telemetry:
+    tracing:
+      phoenix:
+        _type: phoenix
+        endpoint: http://localhost:6006/v1/traces
+        project: a2a-demo
+
+llms:
+  nim_llm:
+    _type: nim
+    model_name: meta/llama-3.3-70b-instruct
+    temperature: 0.0
+    max_tokens: 1024
+
+function_groups:
+  researcher:
+    _type: a2a_client
+    url: http://localhost:9002
+    task_timeout: 120  # seconds
+    include_skills_in_description: true
+
+functions:
+  current_datetime:
+    _type: current_datetime
+
+workflow:
+  _type: react_agent
+  llm_name: nim_llm
+  tool_names:
+    - researcher
+    - current_datetime
+  max_tool_calls: 8
+  verbose: true

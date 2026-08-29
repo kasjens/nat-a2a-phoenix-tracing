@@ -1,0 +1,39 @@
+# Agent B — the "researcher". Exposed as an A2A server on :9002.
+# Start with:  nat start --config_file configs/researcher.yml
+
+general:
+  front_end:
+    _type: a2a
+    host: 0.0.0.0
+    port: 9002
+    name: researcher-agent
+    description: >-
+      Looks facts up on Wikipedia and returns a short factual summary.
+      Ask it a single, self-contained question.
+
+  telemetry:
+    tracing:
+      phoenix:
+        _type: phoenix
+        endpoint: http://localhost:6006/v1/traces
+        project: a2a-demo
+
+llms:
+  nim_llm:
+    _type: nim
+    model_name: meta/llama-3.3-70b-instruct
+    temperature: 0.0
+    max_tokens: 1024
+
+functions:
+  wiki_search:
+    _type: wiki_search
+    max_results: 2
+
+workflow:
+  _type: react_agent
+  llm_name: nim_llm
+  tool_names:
+    - wiki_search
+  max_tool_calls: 6
+  verbose: true
