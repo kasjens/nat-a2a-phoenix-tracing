@@ -81,8 +81,9 @@ Type in:
 
 Read the answer out, then **hit regenerate three or four times** and read those too.
 
-**You will get one of two shapes, and they need different lines.** Rehearse both; you will not know
-which you have until you are on stage. The right answer is 2014 either way — do not reveal it yet.
+**You will get one of three shapes, and they need different lines.** Rehearse all three; you will
+not know which you have until you are on stage. The right answer is 2014 in every case — do not
+reveal it yet.
 
 **Shape A — it varies.** Different years across the regenerations. Earlier rehearsals gave 2013,
 2015, 2014, 2013.
@@ -101,7 +102,22 @@ which you have until you are on stage. The right answer is 2014 either way — d
 > That is worse than being unsure, and it is worse than being wrong occasionally. It is *reliably*
 > wrong, delivered with total confidence, and there is nothing in that answer to tell you so.
 
-Then, for either shape:
+**Shape C — it gets it right.** Rare but real: roughly 1 ask in 13 during rehearsal returned 2014.
+If it comes up in the cold open, do not pretend it did not. Regenerate once or twice more — it will
+almost certainly drift — and use the drift:
+
+> And there it is. Same question, thirty seconds apart, a different answer.
+>
+> Which is the whole problem in one screen. It was right the first time and it is wrong now, and
+> nothing about how it said either one tells you which was which.
+
+If it stubbornly repeats 2014, stop fighting it and reframe — the demo still works, because being
+right once is not the same as being reliable:
+
+> Today it knows this one. That is luck, not a method, and you cannot tell the difference from the
+> outside. Watch what happens when the agent is made to actually check.
+
+Then, for any shape:
 
 > Notice it never once said "I am not sure". That is the problem worth solving. Not that the model
 > is stupid. That you cannot tell from the answer whether it knew or guessed.
@@ -394,9 +410,10 @@ monitoring system — its telemetry travels home inside the answer it was alread
 In which year did Computerworld publish its final print issue? Ask the researcher.
 ```
 
-Model alone, across rehearsals: 2013, 2015, 2014, 2013 on one day; 2017, 2017, 2012, 2017, 2017 on
-another. Sometimes it varies, sometimes it is consistently wrong. Check which you have on the day —
-Scene 1 gives you a line for each.
+Model alone, across rehearsals: `2013, 2015, 2014, 2013` one day; `2017, 2017, 2012, 2017, 2017`
+another; `2015, 2013, 2015, 2013, 2019` a third. Sometimes it varies, sometimes it is consistently
+wrong, and about once in thirteen asks it is simply right. Check which you have on the day — Scene 1
+gives you a line for each of the three.
 
 Two agents: **2014** when it works, and either way you can read exactly what happened.
 

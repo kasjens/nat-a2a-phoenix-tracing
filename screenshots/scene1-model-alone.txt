@@ -9,4 +9,12 @@ Question: In which year did Computerworld publish its final print issue?
   ask 5:  \boxed{2019}
 
   distinct answers: ['2013', '2015', '\\boxed{2019}']
-  Wikipedia says 2014. Nothing in these answers tells you which is right.
+
+---
+The correct answer is 2014, which the model did NOT give in any of the five asks
+above. Nothing in those answers tells you which, if any, is right -- that is the
+point of the scene.
+
+Note: the model can produce 2014 unaided; it did once in about thirteen asks
+during rehearsal. See "Shape C" in demo-script.md for what to say if that happens
+in the cold open.

@@ -10,13 +10,18 @@ The run these came from: **12 spans, one root, answer 2014, 11.9 seconds.**
 
 | File | What it shows |
 |---|---|
-| [scene1-model-alone.txt](scene1-model-alone.txt) | Five unaided asks: `2015, 2013, 2015, 2013, 2019`. Three distinct answers, none of them right — Wikipedia says 2014. |
+| [scene1-model-alone.txt](scene1-model-alone.txt) | Five unaided asks: `2015, 2013, 2015, 2013, 2019`. Three distinct answers, and **none of them is 2014**, the right one. |
 
 Text rather than an image because the playground at build.nvidia.com needs a login. On stage this is
 a browser tab; the numbers are what matters and these are real API calls at temperature 1.0.
 
-Note this is the **Shape A** opening from the script (it varies). An earlier rehearsal produced Shape
-B — `2017` four times out of five, confidently wrong and consistent. Check which you have on the day.
+Note this is the **Shape A** opening from the script (it varies). Rehearsals also produced Shape B —
+`2017` four times out of five, confidently wrong and consistent — and, once in about thirteen asks,
+Shape C: the model simply gets it right. All three need different opening lines and all three are in
+the script. Check which you have on the day.
+
+The `2014` at the foot of that file is the *correct* answer, given so you can see none of the five
+asks matches it. It is not a sixth answer from the model.
 
 ## Scene 2 — two agents, two services
 
