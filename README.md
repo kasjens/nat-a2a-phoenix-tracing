@@ -189,6 +189,17 @@ several successes.
 Do not reach for "and every round cost tokens" here. As above, nat emits no token counts on this
 path, so the cost argument is one you can make in words but cannot show on screen.
 
+## Notes on nat 1.8.0
+
+Building this turned up a lot that is not in the toolkit's documentation: configs that pass
+`nat validate` and then fail at runtime, models that cannot drive a ReAct agent at all, and a
+tracing story with sharper edges than it first appears. It is written up in [`docs/`](docs/):
+
+- [agents-and-config.md](docs/agents-and-config.md) — composing agents, function groups, tool budgets
+- [tracing.md](docs/tracing.md) — what Phoenix does and does not show, and why
+- [models.md](docs/models.md) — 83 models surveyed, 9 that actually work
+- [windows-and-tooling.md](docs/windows-and-tooling.md) — encoding, PowerShell, Wikipedia, Docker
+
 ## Why `plugin/` exists
 
 Two things in the stock 1.8.0 install stop this demo from running at all. Both fixes are small and
@@ -226,6 +237,7 @@ yourself properly.
 | `configs/researcher.yml` | Act two, agent B. `front_end: a2a` on :9002, `wiki_search` tool |
 | `configs/planner.yml` | Act two, agent A. `a2a_client_shared` function group pointed at :9002 |
 | `plugin/` | Two compatibility shims the demo cannot run without on 1.8.0. See below |
+| `docs/` | What we learned about nat 1.8.0 the hard way, with file:line receipts |
 | `docker-compose.yml` | Phoenix, UI and OTLP collector on 6006 |
 | `scripts/setup.sh` | Setup for Ubuntu, Debian, WSL2, macOS |
 | `scripts/setup.ps1` | Setup for Windows PowerShell |
