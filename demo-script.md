@@ -7,8 +7,9 @@ agent, running as a separate service on an open protocol — and afterwards you 
 thing as one story: who asked whom, what each one was thinking, what it went and read, and what it
 cost.
 
-**What this demo is not:** a developer session. Nobody needs to read YAML. There is one moment where
-you show something not working, and it is clearly signposted.
+**What this demo is not:** a developer session. Nobody needs to read YAML, and the whole thing is
+driven from a chat window. There is one moment where you show something not working, and it is
+clearly signposted.
 
 Running time is about seven minutes, plus questions.
 
@@ -20,85 +21,95 @@ Running time is about seven minutes, plus questions.
 
 ## Before you go on
 
-1. `bash scripts/setup.sh`, or `scripts\setup.ps1` on Windows. It should end with three green `ok`
-   lines for the config files.
-2. **Three windows.** Terminal A (the researcher, left), terminal B (the planner, middle), Phoenix
-   in a browser (right). Plus the model playground in a browser tab for the cold open:
-   https://build.nvidia.com/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning/playground
-3. Wipe Phoenix: `docker compose down -v && docker compose up -d`.
-4. **Bake the "before" trace.** With Phoenix clean, run the pair *once* with the fix switched off.
-   This leaves the two disconnected traces you will point at in Scene 4, so you never have to run it
-   twice on stage.
-
-   Terminal A:
+1. `bash scripts/setup.sh`, or `scripts\setup.ps1` on Windows. It should end with green `ok` lines
+   for the config files.
+2. **Install the UI once.** The chat front end is a separate NVIDIA project:
    ```bash
-   NAT_DEMO_NO_TRACE_PROPAGATION=1 NAT_DEMO_NO_STEP_RELAY=1 \
-     nat start a2a --config_file configs/researcher.yml
+   git clone https://github.com/NVIDIA/NeMo-Agent-Toolkit-UI.git ui && cd ui && npm ci
    ```
-   Terminal B:
+   In its `.env` set `NAT_BACKEND_URL=http://127.0.0.1:8001` and
+   `NEXT_PUBLIC_NAT_ENABLE_INTERMEDIATE_STEPS=true`. The second one is not optional — it is what
+   makes Scene 3 work.
+3. **Check the ports are free** before anything else: `ss -ltn | grep -E ':(8001|9002|3000|6006)'`
+   should print nothing. The fastapi front end defaults to 8000, which OnlyOffice and plenty else
+   will have taken — this repo uses 8001 for that reason.
+4. **Start the three services, in this order.** The planner resolves the researcher's agent card at
+   startup, so the researcher must be listening first or the planner will not boot.
+   ```bash
+   nat start a2a --config_file configs/researcher.yml           # terminal A, wait for it
+   nat start fastapi --config_file configs/planner-ui.yml       # terminal B
+   cd ui && npm run dev                                          # terminal C
+   ```
+   Confirm: `curl -s http://localhost:9002/.well-known/agent-card.json` and
+   `curl -s http://localhost:8001/health`.
+5. Wipe Phoenix: `docker compose down -v && docker compose up -d`.
+6. **Bake the "before" trace.** With Phoenix clean, run the pair once from the CLI with the fix
+   switched off. This leaves the two disconnected traces you point at in Scene 4, so you never run
+   the demo twice on stage. It does not disturb the services you just started:
    ```bash
    NAT_DEMO_NO_TRACE_PROPAGATION=1 NAT_DEMO_NO_STEP_RELAY=1 \
      nat run --config_file configs/planner.yml \
      --input "In which year did Computerworld publish its final print issue? Ask the researcher."
    ```
-   Then **stop terminal A** and restart it without the environment variables — that is the researcher
-   you will use on stage:
-   ```bash
-   nat start a2a --config_file configs/researcher.yml
-   ```
-   Check it is listening: `curl -s http://localhost:9002/.well-known/agent-card.json`
+7. **Do a full practice run through the UI** and leave that trace in Phoenix as your safety net. Do
+   not wipe after this.
+8. **Two windows on screen:** the chat UI (left), Phoenix (right). Browser zoom 125 percent or more.
+9. Ask the model the question a few times beforehand so you know what it is doing today — see
+   Scene 1, because what it does changes the opening line you use.
 
-5. **Do a full practice run** of the real thing, and leave that trace in Phoenix. It is your safety
-   net for Scene 5 if the live run misbehaves. Do not wipe again after this.
-6. Browser zoom at 125 percent or more. The tree is what everyone needs to read.
-7. Ask the playground the question a few times so you know what spread you are getting today.
+**The one number to know:** the live run takes 12 seconds to about a minute. Scene 3 is written to be
+talked through, but it may well finish before you do.
 
-**The one number to know:** the live run takes one to two minutes. Scene 3 is written to be talked
-through. Do not stand and watch it.
-
-Activate the venv in both terminals: `source .venv/bin/activate`, or `.\.venv\Scripts\Activate.ps1`
-on Windows.
+Activate the venv in terminals A and B: `source .venv/bin/activate`, or
+`.\.venv\Scripts\Activate.ps1` on Windows.
 
 ---
 
 ## Scene 1. The problem
 
 **Duration:** 45 seconds
-**On screen:** the model playground.
+**On screen:** the model playground,
+https://build.nvidia.com/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning/playground
 
 Type in:
 
 > In which year did Computerworld publish its final print issue?
 
-Read the answer out. Then **hit regenerate twice more** and read those too.
+Read the answer out, then **hit regenerate three or four times** and read those too.
 
-You will get a different year most times. In rehearsal this model gave 2013, then 2015, then 2014,
-then 2013 again. Do not promise a specific wrong year in advance; the point is the spread, and the
-spread is reliable even though any single answer is not.
+**You will get one of two shapes, and they need different lines.** Rehearse both; you will not know
+which you have until you are on stage. The right answer is 2014 either way — do not reveal it yet.
 
-> Three times, three answers.
+**Shape A — it varies.** Different years across the regenerations. Earlier rehearsals gave 2013,
+2015, 2014, 2013.
+
+> Four times, four answers.
 >
-> One of those is right, by the way. It does not know which one. It is not looking anything up,
-> because it cannot. It is doing what you would do if someone asked you a date at a party and you
-> did not want to seem ignorant.
->
-> And notice it never once said "I am not sure". Every one of those was delivered with exactly the
-> same confidence.
->
-> That is the problem worth solving. Not that the model is stupid. That you cannot tell from the
-> answer whether it knew or guessed.
+> One of those is right. It does not know which one. It is not looking anything up, because it
+> cannot. It is doing what you would do if someone asked you a date at a party and you did not want
+> to seem ignorant.
 
-**If it gives the same year three times**, say: "it is consistent today, but it is still guessing,
-and it will not tell you that." Move on. Do not fight it.
+**Shape B — it is consistent, and wrong.** This is what the most recent rehearsal gave: 2017, 2017,
+2012, 2017, 2017.
 
-The right answer is 2014. Do not reveal it yet.
+> Four times, the same answer. Which is a problem, because it is wrong.
+>
+> That is worse than being unsure, and it is worse than being wrong occasionally. It is *reliably*
+> wrong, delivered with total confidence, and there is nothing in that answer to tell you so.
+
+Then, for either shape:
+
+> Notice it never once said "I am not sure". That is the problem worth solving. Not that the model
+> is stupid. That you cannot tell from the answer whether it knew or guessed.
+
+Do not labour it. Forty-five seconds and move.
 
 ---
 
 ## Scene 2. Two agents, two services
 
 **Duration:** 60 seconds
-**On screen:** terminal A, showing the researcher already running.
+**On screen:** a browser tab at http://localhost:9002/.well-known/agent-card.json
 
 > So let's give it help. Two agents.
 >
@@ -106,175 +117,148 @@ The right answer is 2014. Do not reveal it yet.
 >
 > The second one has exactly one skill: it can search Wikipedia. Call it the researcher.
 
-Point at terminal A.
+Point at the agent card on screen.
 
-> And here is the part that makes this realistic rather than a toy. The researcher is not a function
-> inside the first program. It is its own service, running on its own, listening on a port. It could
-> be on another machine, in another data centre, run by another team, or bought from another
-> company.
+> And here is what makes this realistic rather than a toy. The researcher is not a function inside
+> the first program. It is its own service, on its own port. This is all the planner knows about it:
+> a name, a description, and one skill called Wiki Search.
 >
-> They talk over an open protocol called A2A — agent to agent. The planner does not know or care
-> what the researcher is written in.
-
-Optionally show the agent card for five seconds:
-
-```bash
-curl -s http://localhost:9002/.well-known/agent-card.json
-```
-
-> That is the researcher advertising what it can do. That is all the planner gets.
+> It could be on another machine, in another data centre, run by another team, or bought from
+> another company. They talk over an open protocol called A2A — agent to agent. The planner does not
+> know or care what the researcher is written in.
 >
-> Which is exactly the arrangement everyone is heading for, and exactly the arrangement where
-> "what happened?" gets hard to answer.
+> Which is where everyone is heading, and exactly where "what happened?" gets hard to answer.
 
-Do not read YAML aloud. Nobody came for it.
+Do not read the JSON aloud. Point at `name`, `description`, and `skills`, and move on.
 
 ---
 
-## Scene 3. Run it
+## Scene 3. Ask it
 
-**Duration:** 90 seconds, most of it talking
-**On screen:** terminal B.
+**Duration:** 2 minutes
+**On screen:** the chat UI at http://localhost:3000
 
-Start the run *first*, then talk:
+Type the question into the chat box and send it:
 
-```bash
-nat run --config_file configs/planner.yml \
-  --input "In which year did Computerworld publish its final print issue? Ask the researcher."
+```
+In which year did Computerworld publish its final print issue? Ask the researcher.
 ```
 
-While it runs:
+An **Intermediate Steps** panel appears immediately and fills in while it works. Let it.
 
 > Same question. This time the planner has somewhere to go with it.
 >
-> It is deciding right now that this is a question of fact, that it should not answer from memory,
-> and that there is a researcher out there for exactly this. Then it makes a network call and waits,
-> the way you wait for a colleague.
+> It has decided this is a question of fact, that it should not answer from memory, and that there
+> is a researcher out there for exactly this. It has made a network call and it is waiting, the way
+> you wait for a colleague.
 
-If you need more time, this is the honest bit worth saying:
-
-> This takes a minute or two, and it is worth being straight about why. Every step is a real call to
-> a real model. There are several of them, and they are not free and not instant. Anyone who shows
-> you an agent doing this in two seconds has either cached it or cut it.
-
-When it finishes:
+When the answer lands:
 
 > **2014.** Which is right.
 >
 > Same model, same question. The difference is that this time somebody looked it up.
 
-**If the answer comes back "not found" or wrong**, do not pretend otherwise. Say:
+Now the part worth slowing down for. **Expand the second `Function Start` step.** Inside it you will
+find, nested: an LLM call, `Tool: wiki_search`, `Function Start: wiki_search`,
+`Function Complete: wiki_search`, and another LLM call.
 
-> And that is an agent for you — it did not find it that time. Let me show you *why*, which is
-> actually the more useful thing.
+> Now look at what is inside that call.
+>
+> That is not the planner. That is the *researcher* — a different process, on a different port —
+> and we are reading its private reasoning here in the caller's chat window. Its decision to search,
+> the search itself, and what it concluded.
 
-Then go to Phoenix anyway. The trace is the demo; a failed run still traces perfectly, and reading a
-failure is a stronger point than reading a success. See [Reliability](#reliability-read-this-before-you-commit).
+**Expand one of the `nvidia/nemotron...` rows** to show `Input` and `Output: Final Answer: 2014`.
+
+> Its actual prompt. Its actual answer. From the other service.
+>
+> That is not something you normally get. Out of the box the remote agent's reasoning stays on the
+> remote agent, and all you see is a result appearing from somewhere.
 
 ---
 
-## Scene 4. What you get out of the box
+## Scene 4. What that normally looks like
 
 **Duration:** 45 seconds
-**On screen:** Phoenix, trace list.
+**On screen:** Phoenix at http://localhost:6006, the **a2a-demo** project, **Traces** tab.
 
-Open http://localhost:6006 and click the **a2a-demo** project. Do not open a trace yet.
-
-> Before the good news, the bad news, because it is the reason this repo exists.
+> I said that is not what you normally get. Here is what you normally get.
 >
-> I ran this same pair before we started, with one thing switched off. Those two rows are the
-> result.
+> I ran this same pair before we started, with one feature switched off.
 
-Point at the two older traces sitting next to each other.
+Point at the two older rows — one named `planner`, one named `researcher`.
 
-> Two separate records. One for the planner, one for the researcher. Same moment in time, and
-> nothing whatsoever connecting them.
+> Two separate records. One for the planner, one for the researcher. Same moment in time, both
+> perfectly correct, and nothing whatsoever connecting them.
 >
-> Nobody did anything wrong. That is just what you get when two agents talk over a network. Each one
-> writes down its own half, and no one writes down that one caused the other.
+> Nobody did anything wrong. That is just what happens when two agents talk over a network. Each
+> writes down its own half, and nobody writes down that one caused the other.
 >
-> Which means when something goes wrong at three in the morning, you have two piles of evidence and
-> no thread between them.
+> So at three in the morning you have two piles of evidence and no thread between them.
 
-If you are short of time, cut this scene entirely and go straight to Scene 5. It is the engineering
-point, not the human one.
+If you are short of time, cut this scene. It is the engineering point, not the human one.
 
 ---
 
-## Scene 5. The whole chain, as one story
+## Scene 5. The record afterwards
 
-**Duration:** 2 minutes and 30 seconds
+**Duration:** 2 minutes
 **On screen:** Phoenix, your live trace.
 
-This is the heart of the demo. Slow down.
+Click the newest trace, the one from the run you just did.
 
-Click the newest trace — the one from the run you just did.
-
-> And here is the same two agents, with that gap closed.
+> You already saw the reasoning in the chat window, live. This is the same thing afterwards, as a
+> record — which is what you actually need when something has gone wrong and the chat window is long
+> gone.
 >
-> One record. Not two.
+> One trace. Not two.
 
-Point at the tree, top to bottom:
+Point down the tree:
 
 ```
-planner                                     <- 11.8s total
+planner                        <- the agent that took the question
   <workflow>
-    nemotron...            [LLM]   1122 tokens
-    researcher__call       [TOOL]                8.3s
-      researcher__call
-        researcher                          <- a different process, on :9002
-          <workflow>
-            nemotron...    [LLM]    597 tokens
-            wiki_search    [TOOL]
-            nemotron...    [LLM]   2070 tokens
-    nemotron...            [LLM]   1283 tokens
+    nvidia/nemotron...  [LLM]  <- deciding to delegate
+    researcher__send_message   <- picking up the phone
+      researcher               <- a different process, nested inside the call
+        <workflow>
+          nvidia/nemotron...  [LLM]
+          wiki_search         [TOOL]
+          nvidia/nemotron...  [LLM]
+    nvidia/nemotron...  [LLM]  <- writing the final answer
 ```
 
-That is a real run, not a mock-up. Yours will differ in the numbers and in how many searches the
-researcher needed.
+There are a couple of bookkeeping rows — `<workflow>`, and the call span appearing twice. Read
+straight past them; pointing at them costs you a minute.
 
-There are a couple of bookkeeping rows in there — `<workflow>`, and `researcher__call` appearing
-twice. Read straight past them. They are the toolkit's own plumbing and pointing at them costs you a
-minute.
+**Click the `researcher` span.** Its Input is the question the planner asked it. Its Output is
+`2014`. Its latency is its own.
 
-> The planner at the top. That is the agent that took your question.
+> That indentation is the handoff. The researcher's work is *inside* the planner's call because the
+> planner is what caused it.
 >
-> Indented under it, `researcher__call` — that is the moment it picked up the phone.
->
-> And *inside that*, the researcher. Its own reasoning, its own Wikipedia search, its own conclusion.
->
-> That is a different process. On a different port. It could be in a different country. And it is
-> sitting inside the planner's record as one nested story, because we taught the two of them to pass
-> the thread along.
+> And this is a different process. It could be a different company. It is in here because the two of
+> them pass the thread along.
 
-Now the reasoning. Click one of the `nemotron` rows under the researcher and open **Input**:
+**Open the Attributes tab** and find `nat.function.parent_name`.
 
-> This is what the researcher was actually thinking. Not a summary — the real prompt and the real
-> reply. You can read the moment it decided which search to run.
-
-Then click the `wiki_search` row:
-
-> And this is what it went and read. The actual article text it based the answer on.
-
-Then click back up to the planner's own rows:
-
-> Same for the planner, one level up. You can read it deciding to delegate rather than answer.
+> If you would rather read it in words than by indentation — every step records which agent handed
+> it the work.
 
 Land the point:
 
-> This is the part I want you to take away. When an agent gets something wrong in production, "the
-> AI made a mistake" is not a finding you can act on. This is.
+> When an agent gets something wrong in production, "the AI made a mistake" is not a finding you can
+> act on. This is.
 >
-> You can see which agent was asked, what it was thinking, what it went and read, what it handed
-> back, and how long each step took. Across a network, between two services that know almost nothing
-> about each other.
+> Which agent was asked, what it was thinking, what it went and read, what it handed back, how long
+> each step took. Across a network, between two services that know almost nothing about each other.
 >
 > Not a log file. The shape of the thing.
 
-**The cost line**, if the audience is commercial — point at the token numbers:
+**The cost line**, if the audience is commercial — the `[LLM]` rows carry token counts:
 
-> And every one of those steps is counted. That question cost about seven thousand tokens across
-> four model calls. Multiply by however many of these you are planning to run.
+> And every step is counted. That question cost about seven thousand tokens across four model calls.
+> Multiply by however many of these you plan to run.
 
 ---
 
@@ -284,15 +268,16 @@ Land the point:
 
 > Three things.
 >
-> One. A model on its own answers from memory, gives you a different answer each time, and cannot
-> tell you it is guessing. Giving it somewhere to look things up is the whole difference.
+> One. A model on its own answers from memory, and it cannot tell you it is doing that — whether it
+> gives you a different answer each time or the same wrong one with total confidence. Giving it
+> somewhere to look things up is the whole difference.
 >
 > Two. The moment your agents are separate services — which is where everyone is heading — "what
 > happened" stops being obvious. Out of the box you get two disconnected records. You have to
 > deliberately pass the thread across, and you have to do it before something goes wrong, not after.
 >
-> Three. None of this was exotic. Two agents, one search tool, an open protocol, and an open source
-> tracing tool running in a container on this laptop.
+> Three. None of this was exotic. Two agents, one search tool, an open protocol, a chat window, and
+> an open source tracing tool running in a container on this laptop.
 
 Stop. No outro.
 
@@ -304,7 +289,14 @@ The two-process version is less reliable than the single-process one. Here are t
 rather than a shrug.
 
 **Tracing: solid.** Every run produced one trace, one root, the researcher nested inside the planner,
-with reasoning and token counts present. That part did not fail once.
+with reasoning and token counts present. That part did not fail once — including through the UI,
+which reaches the planner by a different route than the CLI.
+
+**One caveat about that route.** The A2A client exposes several functions and the model picks freely;
+a rehearsal through the UI picked `send_message` where every CLI run had picked `call`. If you are
+running a modified version of this repo, make sure the step relay covers all of them — the failure is
+silent and looks like a complete trace with the remote agent's subtree missing. Fixed here, written
+up in [docs/tracing.md](docs/tracing.md).
 
 **Answer quality: roughly 4 runs in 5.** The researcher used to run a single search, miss, and answer
 "not available" — 3 of 5 runs. Its own instructions were the cause, and `configs/researcher.yml` now
@@ -363,15 +355,27 @@ LLM spans on this path out of the box, and the shims in `plugin/` are what put t
 numbers on screen. If someone asks whether that is standard, the honest answer is "not yet; this repo
 adds it, and the write-up is in `docs/`."
 
-**Ignore the bookkeeping rows.** `<workflow>`, and `researcher__call` appearing at two levels. If
-someone asks: "that's the toolkit's own plumbing."
+**Ignore the bookkeeping rows.** `<workflow>`, and the call span appearing at two levels. If someone
+asks: "that's the toolkit's own plumbing."
 
 **The searches vary.** Some runs the researcher finds it first try, some take two or three. Count
 what is on screen rather than promising a number.
 
-**Two terminals is a real risk.** Start the researcher well before you go on and check the agent card
-responds. If the planner reports `503 All connection attempts failed`, the researcher is not up, or
-it bound to the wrong address — the config binds `127.0.0.1` deliberately.
+**Three services is a real risk.** Start them in order — researcher, planner, UI — and check both
+health endpoints before you go on. Things that will bite you:
+
+- The planner resolves the researcher's agent card **at startup**, so the researcher must be up
+  first, or the planner will not boot.
+- Port 8001 must be free. The fastapi default is 8000 and is often taken.
+- Both of those failures are reported as
+  `'FastApiFrontEndPlugin' object has no attribute '_dask_client'`, which is not the real error.
+  Scroll up to the first `ERROR:` line.
+- If the planner reports `503 All connection attempts failed`, the researcher bound to the wrong
+  address — the config binds `127.0.0.1` deliberately.
+
+**The mic button is next to the send arrow.** In the chat UI they sit together at the right of the
+input box. Clicking the wrong one prompts for microphone access in front of the room. Send is the
+paper plane, on the far right.
 
 **If someone asks whether the remote agent has to trust you with its prompts.** Good question, and
 the answer is a genuine design point: it does not. The remote agent chooses what to put in its
@@ -386,8 +390,12 @@ monitoring system — its telemetry travels home inside the answer it was alread
 In which year did Computerworld publish its final print issue? Ask the researcher.
 ```
 
-Model alone: a different year most times you ask. Rehearsal gave 2013, 2015, 2014, 2013.
+Model alone, across rehearsals: 2013, 2015, 2014, 2013 on one day; 2017, 2017, 2012, 2017, 2017 on
+another. Sometimes it varies, sometimes it is consistently wrong. Check which you have on the day —
+Scene 1 gives you a line for each.
+
 Two agents: **2014** when it works, and either way you can read exactly what happened.
 
-The model is not reliably wrong, it is reliably *unreliable*. That is the honest framing, and it is
-the stronger one, because nobody can accuse you of picking a question the model happens to fail.
+Whichever shape you get, the honest framing is the same and it is the stronger one: the model cannot
+tell you whether it knew or guessed. Nobody can accuse you of picking a question it happens to fail,
+because the problem is not the wrong answer — it is the missing "I am not sure".

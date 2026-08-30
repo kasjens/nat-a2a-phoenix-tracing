@@ -395,6 +395,10 @@ you should read before committing to the live two-process version**. The essenti
   `docker compose down` keeps the volume.
 - Bake the "without the fix" trace *before* you go on, with the two `NAT_DEMO_NO_*` variables set, so
   the broken pair is already in the trace list and you never run the demo twice on stage.
+- The demo is driven from the NeMo Agent Toolkit UI. With
+  `NEXT_PUBLIC_NAT_ENABLE_INTERMEDIATE_STEPS=true` the chat window shows the *remote* agent's
+  reasoning inline, because the step relay replays it into the caller's stream — so the chain is
+  visible before you ever open Phoenix.
 - Ask the model your question a few times beforehand so you know what it is doing that day. Its
   unaided answer is not stable, and the opening depends on knowing that.
 - Keep the rehearsal trace in Phoenix as a fallback, and `configs/chain.yml` ready as a more reliable
