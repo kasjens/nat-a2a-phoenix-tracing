@@ -109,6 +109,25 @@ against 1.8.0, which is the latest release.
 Say this out loud in the video. It is the most useful thing in the demo, it is current, and most
 people assume OpenTelemetry underneath means it just works.
 
+**Can you fix it?** Mostly, yes, and `plugin/` does. It injects a `traceparent` on the A2A client
+and reads it back on the server, which is the two-line gap described above. Measured against a wiped
+Phoenix volume:
+
+| | traces | trace ids | root spans |
+|---|---|---|---|
+| stock 1.8.0 | 2 | 2 | 2 |
+| with `plugin/` | **1** | **1** | 2 |
+
+So the hop is linked and both agents land in one trace. What you still do not get is the researcher
+nested under the planner's `researcher__call` span, and that part is not another header. nat resolves
+parentage through an in-process dictionary: `span_exporter` looks the parent up in its local
+`_span_stack` and, on a miss, logs "No parent span found" and drops the span. Handing it a parent id
+minted in the other process would delete the researcher's root span rather than reparent it. Real
+cross-process nesting needs a change inside `span_exporter`.
+
+Set `NAT_DEMO_NO_TRACE_PROPAGATION=1` to turn the fix off and get the original two-trace behaviour,
+which is what you want while recording beat 2.
+
 **Beat 3 — looping inefficiency.**
 Ask for something Wikipedia cannot answer:
 

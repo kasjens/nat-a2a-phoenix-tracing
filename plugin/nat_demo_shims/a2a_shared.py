@@ -40,6 +40,8 @@ from nat.cli.register_workflow import register_function_group
 from nat.plugins.a2a.client.client_config import A2AClientConfig
 from nat.plugins.a2a.client.client_impl import A2AClientFunctionGroup
 
+from nat_demo_shims.trace_propagation import install_client_injection
+
 logger = logging.getLogger(__name__)
 
 _SHARED_USER_ID = "nat-demo-shared"
@@ -65,6 +67,13 @@ async def a2a_client_shared_function_group(config: A2AClientSharedConfig,
 
     try:
         async with A2AClientFunctionGroup(config, builder) as group:
+            # The A2A client is built without a traceparent header, which is half of why the
+            # planner and researcher end up in two unlinked traces. See trace_propagation.py.
+            httpx_client = getattr(getattr(group, "_client", None), "_httpx_client", None)
+            if httpx_client is not None:
+                install_client_injection(httpx_client)
+            else:
+                logger.warning("A2A client exposed no httpx client; traceparent will not be injected")
             yield group
     finally:
         if token is not None:
