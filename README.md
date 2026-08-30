@@ -376,6 +376,7 @@ Act two only. `NAT_DEMO_NO_STEP_RELAY=1` turns it off.
 | `configs/planner-ui.yml` | The planner served over HTTP, for driving it from a browser UI |
 | `plugin/` | Five shims: two the demo cannot run without on 1.8.0, three optional. See below |
 | `docs/` | What we learned about nat 1.8.0 the hard way, with file:line receipts |
+| `screenshots/` | A full rehearsal, one capture per scene of the demo script |
 | `demo-script.md` | Presenter script for the conference demo |
 | `docker-compose.yml` | Phoenix, UI and OTLP collector on 6006 |
 | `scripts/setup.sh` | Setup for Ubuntu, Debian, WSL2, macOS |

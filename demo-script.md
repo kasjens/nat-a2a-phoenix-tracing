@@ -57,6 +57,10 @@ Running time is about seven minutes, plus questions.
 9. Ask the model the question a few times beforehand so you know what it is doing today — see
    Scene 1, because what it does changes the opening line you use.
 
+Screenshots of a complete rehearsal — one per scene, with notes on what each is meant to show — are
+in [screenshots/](screenshots/). Worth a look before your first run so you know what you are aiming
+at.
+
 **The one number to know:** the live run takes 12 seconds to about a minute. Scene 3 is written to be
 talked through, but it may well finish before you do.
 

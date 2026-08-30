@@ -1,0 +1,12 @@
+SCENE 1 - the model on its own, no tools
+Model: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning  |  temperature 1.0  |  asked 5 times
+Question: In which year did Computerworld publish its final print issue?
+
+  ask 1:  2015
+  ask 2:  2013
+  ask 3:  2015
+  ask 4:  2013
+  ask 5:  \boxed{2019}
+
+  distinct answers: ['2013', '2015', '\\boxed{2019}']
+  Wikipedia says 2014. Nothing in these answers tells you which is right.
