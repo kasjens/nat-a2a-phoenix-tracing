@@ -340,7 +340,22 @@ def _serialize_steps(steps: list) -> list | None:
 # client: pull the steps out, re-parent them, replay them
 # --------------------------------------------------------------------------
 def install_client_relay() -> bool:
-    """Replay the remote agent's steps into the caller's own trace."""
+    """Replay the remote agent's steps into the caller's own trace.
+
+    Patched at ``A2ABaseClient.send_message`` rather than at the function group,
+    because the group registers several callable functions -- ``call``,
+    ``send_message``, ``send_message_streaming`` -- and the agent picks whichever
+    one it likes. All of them funnel through this single generator
+    (``client_base.py``), so this is the one place that covers every path.
+
+    Getting this wrong is worse than not doing it at all. The relay header goes out
+    on *every* request, so the callee stops exporting on every request; if the
+    replay only covered one of the functions, then any call through another one
+    would leave nobody publishing and the remote agent's work would vanish. That is
+    exactly what happened before this was moved here: an agent that chose
+    ``send_message`` over ``call`` produced a 6-span trace with the researcher's
+    entire subtree missing.
+    """
     global _patched_client
     if _patched_client:
         return True
@@ -349,48 +364,39 @@ def install_client_relay() -> bool:
         return False
 
     try:
-        from nat.plugins.a2a.client.client_impl import A2AClientFunctionGroup
+        from nat.plugins.a2a.client.client_base import A2ABaseClient
     except ImportError:
         logger.debug("nat a2a client not installed; skipping step relay replay")
         return False
 
-    def _create_high_level_function(self):
-        """Same contract as the stock high-level function, plus a telemetry replay.
+    original_send_message = A2ABaseClient.send_message
 
-        The stock implementation collects events and throws them away after
-        extracting the text. This needs the raw events to reach `Message.metadata`,
-        so it repeats those few lines rather than wrapping them.
-        """
-
-        async def high_level_fn(query: str, task_id: str | None = None, context_id: str | None = None) -> str:
-            if not self._client:
-                raise RuntimeError("A2A client not initialized")
-
-            events = []
+    async def send_message(self, message_text, task_id=None, context_id=None):
+        events = []
+        try:
+            async for event in original_send_message(self, message_text, task_id=task_id, context_id=context_id):
+                events.append(event)
+                yield event
+        except Exception as e:
+            # A failed call still produced work worth seeing, and the server puts its
+            # steps on the JSON-RPC error precisely because the error response throws
+            # the message body away.
             try:
-                async for event in self._client.send_message(query, task_id, context_id):
-                    events.append(event)
-            except Exception as e:
-                # A failed remote call still produced work worth seeing, and the server
-                # puts its steps on the JSON-RPC error precisely because the error
-                # response discards the message body.
-                try:
-                    replay_steps_from_error(e)
-                except Exception:
-                    logger.debug("could not replay remote steps from the error", exc_info=True)
-                raise
-
-            try:
-                replay_steps_from_events(events)
+                replay_steps_from_error(e)
             except Exception:
-                # Telemetry must never break the actual call.
-                logger.debug("could not replay remote steps", exc_info=True)
+                logger.warning("relayed steps arrived on an error but could not be replayed", exc_info=True)
+            raise
+        try:
+            replay_steps_from_events(events)
+        except Exception:
+            # Telemetry must never break the actual call, but this is not a silent
+            # condition: the callee has already stood down on our say-so, so a failure
+            # here means its work is not recorded anywhere.
+            logger.warning("relayed steps arrived but could not be replayed; "
+                           "the remote agent's telemetry is lost for this call",
+                           exc_info=True)
 
-            return self._client.extract_text_from_events(events)
-
-        return high_level_fn
-
-    A2AClientFunctionGroup._create_high_level_function = _create_high_level_function
+    A2ABaseClient.send_message = send_message
     _patched_client = True
     logger.info("A2A step relay: replaying remote steps into the local trace")
     return True

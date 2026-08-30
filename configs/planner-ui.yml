@@ -1,0 +1,70 @@
+# Agent A — the "planner", served over HTTP so a browser UI can drive it.
+# Start with:  nat start fastapi --config_file configs/planner-ui.yml
+#
+# This is configs/planner.yml with a fastapi front end bolted on. Everything below the
+# `general:` block is identical; keep them in step if you change one.
+#
+# Use this when you want to prompt from the NeMo Agent Toolkit UI instead of the terminal.
+# `nat run --config_file configs/planner.yml` remains the terminal path and is unaffected.
+
+general:
+  front_end:
+    _type: fastapi
+    host: localhost   # same reasoning as researcher.yml: the browser dials this exact host
+    # 8000 is the fastapi front end's default and is a popular port -- OnlyOffice
+    # Document Server grabs it, among others. Check with `ss -ltn | grep :8001` before
+    # you present; a clash surfaces as a confusing AttributeError, see docs/.
+    port: 8001
+    cors:
+      # The UI runs on :3000 and calls this server from the browser, so it is a
+      # cross-origin request and will be blocked without this.
+      allow_origins:
+        - "http://localhost:3000"
+        - "http://127.0.0.1:3000"
+      allow_methods:
+        - "*"
+      allow_headers:
+        - "*"
+      allow_credentials: true
+
+  telemetry:
+    tracing:
+      phoenix:
+        _type: phoenix
+        endpoint: http://localhost:6006/v1/traces
+        project: a2a-demo
+
+llms:
+  nim_llm:
+    _type: nim
+    model_name: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
+    # Model choice is load-bearing here, and most of the catalog does not work:
+    #   - meta/llama-3.3-70b-instruct (the original pin) is retired -> HTTP 410 Gone
+    #   - gpt-oss-20b returns an empty `content` -> ReActAgentParsingFailedError
+    #   - nemotron-3-super / -ultra answer with bare JSON, not Thought:/Action:
+    #   - gpt-oss-120b works but is slow enough to trip the A2A task_timeout
+    temperature: 0.0
+    max_tokens: 4096
+
+function_groups:
+  researcher:
+    _type: a2a_client_shared   # see plugin/ -- stock a2a_client is per-user and unusable here
+    url: http://localhost:9002
+    task_timeout: 600  # seconds
+    include_skills_in_description: false
+
+functions:
+  current_datetime:
+    _type: current_datetime
+
+workflow:
+  _type: react_agent
+  # Names the root span. Without it the root is the literal placeholder `<workflow>`.
+  name: planner
+  llm_name: nim_llm
+  tool_names:
+    - researcher
+    - current_datetime
+  max_tool_calls: 8
+  parse_agent_response_max_retries: 3
+  verbose: true

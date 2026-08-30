@@ -113,6 +113,27 @@ the agent the span belongs to, `nat.function.parent_name` is the agent that call
 The presenter script is in [demo-script.md](demo-script.md), including a **reliability section worth
 reading before you demo this live** — the two-process path has a known intermittent failure.
 
+### Driving it from a browser instead of the terminal
+
+`configs/planner-ui.yml` is the same planner served over the fastapi front end, so a chat UI can
+drive it. Pair it with [NVIDIA's NeMo Agent Toolkit UI](https://github.com/NVIDIA/NeMo-Agent-Toolkit-UI):
+
+```bash
+nat start a2a --config_file configs/researcher.yml        # terminal 1, must be up first
+nat start fastapi --config_file configs/planner-ui.yml    # terminal 2
+```
+
+Point the UI's `NAT_BACKEND_URL` at `http://127.0.0.1:8001` and run it with `npm run dev`. Set
+`NEXT_PUBLIC_NAT_ENABLE_INTERMEDIATE_STEPS=true` and it renders the agent's reasoning steps inline,
+alongside the Phoenix trace.
+
+Two things that will bite you, both written up in
+[docs/agents-and-config.md](docs/agents-and-config.md): the planner resolves the researcher's agent
+card at **startup**, so the researcher has to be listening first; and the front end defaults to port
+8000, which is often already taken. Either failure is reported as
+`'FastApiFrontEndPlugin' object has no attribute '_dask_client'`, which is not the real error — scroll
+up to the first `ERROR:` line.
+
 ### To see what it looks like without the fix
 
 Both halves can be switched off, which is the clearest way to see what nat gives you out of the box:
@@ -352,6 +373,7 @@ Act two only. `NAT_DEMO_NO_STEP_RELAY=1` turns it off.
 | `configs/researcher.yml` | **The demo, agent B.** `front_end: a2a` on :9002, `wiki_search` tool |
 | `configs/planner.yml` | **The demo, agent A.** `a2a_client_shared` function group pointed at :9002 |
 | `configs/chain.yml` | The simpler variant, and the fallback. Both agents in one process |
+| `configs/planner-ui.yml` | The planner served over HTTP, for driving it from a browser UI |
 | `plugin/` | Five shims: two the demo cannot run without on 1.8.0, three optional. See below |
 | `docs/` | What we learned about nat 1.8.0 the hard way, with file:line receipts |
 | `demo-script.md` | Presenter script for the conference demo |

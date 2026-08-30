@@ -298,3 +298,29 @@ it to get the failed call's telemetry home.
 
 **Measured**, on a run where the researcher's ReAct loop failed: 47 steps were attached to the
 message and none of them arrived.
+
+
+---
+
+## A fastapi startup failure is reported as a `_dask_client` AttributeError
+
+If the fastapi front end cannot start, the error you get is:
+
+```
+Error: 'FastApiFrontEndPlugin' object has no attribute '_dask_client'
+```
+
+which says nothing about what went wrong. It is raised in the cleanup path after the real failure,
+and the real failure is further up the log. Two that we hit:
+
+```
+ERROR:  [Errno 98] error while attempting to bind on address ('127.0.0.1', 8000): address already in use
+RuntimeError: Failed to fetch agent card from http://localhost:9002/
+```
+
+The first matters because **8000 is the fastapi front end's default** and is a popular port —
+OnlyOffice Document Server takes it, among others. The second is an ordering constraint: a planner
+with an `a2a_client` function group resolves the remote agent card *at startup*, so the researcher
+must already be listening before you start the planner.
+
+**Measured.** Always scroll past the AttributeError to the first `ERROR:` line.

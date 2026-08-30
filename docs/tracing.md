@@ -251,6 +251,18 @@ skip starting its own exporters for that request. Absent the header nothing chan
 caller still gets stock behaviour. A useful side effect: **the callee needs no route to your
 collector at all** — its telemetry goes home in the response it was already sending.
 
+**Suppression and replay must cover the same set of calls.** The A2A function group registers
+several callable functions — `call`, `send_message`, `send_message_streaming` — and the agent picks
+whichever it likes. The relay header goes out on every request, so the callee stops exporting on
+every request. Hook the replay onto only one of those functions and any call through another leaves
+*nobody* publishing.
+
+Measured, and it is nastier than the problem it replaces: a run that chose `send_message` over `call`
+produced a 6-span trace with the remote agent's entire subtree missing — 16 steps attached by the
+server, 0 replayed. Stock at least gives you two honest traces; this gives you one trace that looks
+complete and is not. The fix is to hook `A2ABaseClient.send_message`, the single generator every path
+funnels through, and to log a *warning* rather than a debug line when a replay fails.
+
 **And a failed call loses its steps unless you look elsewhere.** The A2A adapter enqueues an error
 `Message` and then raises `ServerError`, so JSON-RPC discards the message body. The steps go on
 `InternalError.data` instead, which the adapter leaves empty; the client replays from there and
