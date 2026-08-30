@@ -105,6 +105,9 @@ fi
 echo
 echo "Validating configs"
 NVIDIA_API_KEY="${NVIDIA_API_KEY:-nvapi-placeholder}" \
+  nat validate --config_file configs/chain.yml >/dev/null 2>&1 \
+  && ok "configs/chain.yml" || fail "configs/chain.yml did not validate"
+NVIDIA_API_KEY="${NVIDIA_API_KEY:-nvapi-placeholder}" \
   nat validate --config_file configs/researcher.yml >/dev/null 2>&1 \
   && ok "configs/researcher.yml" || fail "configs/researcher.yml did not validate"
 NVIDIA_API_KEY="${NVIDIA_API_KEY:-nvapi-placeholder}" \
@@ -113,14 +116,18 @@ NVIDIA_API_KEY="${NVIDIA_API_KEY:-nvapi-placeholder}" \
 
 cat <<'EOF'
 
-Ready. Two terminals:
+Ready. The main demo is one command:
+
+  source .venv/bin/activate
+  nat run --config_file configs/chain.yml \
+    --input "Which company makes the H100, and when was it announced? Ask the researcher."
+
+Act two, the same agents split over A2A, needs two terminals:
 
   # terminal 1
-  source .venv/bin/activate
   nat start a2a --config_file configs/researcher.yml
 
   # terminal 2
-  source .venv/bin/activate
   nat run --config_file configs/planner.yml \
     --input "Which company makes the H100, and when was it announced? Use the researcher."
 

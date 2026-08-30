@@ -1,11 +1,14 @@
-# NAT + A2A + Phoenix tracing sandbox
+# Tracing one agent handing work to another
 
-A two-agent demo you can record in about six minutes. A planner agent calls a researcher agent
-over the A2A protocol. Both export traces to a local Phoenix instance.
+A planner agent delegates a lookup to a researcher agent, the researcher searches Wikipedia, and
+the answer comes back up the chain. Everything exports to a local Phoenix instance, where the whole
+handoff shows up as one tree you can follow end to end.
 
-The point of the demo is what Phoenix shows you, and what it does not.
+Then the same two agents are split across a network with the A2A protocol, and that single tree
+falls apart. That contrast is the second half of the demo.
 
-Verified against `nvidia-nat` 1.8.0 (August 2026). Both config files pass `nat validate`.
+Verified against `nvidia-nat` 1.8.0 (August 2026), which is the latest release. All three config
+files pass `nat validate` and have been run end to end.
 
 ## What you need
 
@@ -41,7 +44,39 @@ so one pass shows you everything that needs fixing.
 
 ## Run
 
-Terminal 1, the researcher, served as an A2A agent on port 9002:
+One command, one process, two agents:
+
+```bash
+nat run --config_file configs/chain.yml   --input "Which company makes the H100, and when was it announced? Ask the researcher."
+```
+
+Activate the venv first: `source .venv/bin/activate` on Linux and macOS,
+`.\.venv\Scripts\Activate.ps1` on Windows.
+
+Open http://localhost:6006, project `a2a-demo`, and click the trace. You get:
+
+```
+planner                 <- agent A, the root span
+  <workflow>            <- nat's entry-function wrapper, not an agent
+    researcher          <- agent B, named after its key in configs/chain.yml
+      wiki_search
+      wiki_search
+```
+
+Read **down** the tree for the request path, and each span's **Output** back **up** for the
+response path. The answer condenses at every handoff: `wiki_search` returns raw Wikipedia
+documents, `researcher` returns a sentence, `planner` returns the short answer the user asked for.
+
+To see who handed work to whom in words rather than by nesting, open a span's **Attributes** tab:
+`nat.function.name` is the agent the span belongs to, and `nat.function.parent_name` is the agent
+that called it.
+
+Roughly three and a half minutes end to end, most of it the researcher's own loop.
+
+### Act two: the same agents, over a network
+
+Now split them across a process boundary and watch the chain break. Terminal 1, the researcher,
+served as an A2A agent on port 9002:
 
 ```bash
 nat start a2a --config_file configs/researcher.yml
@@ -66,19 +101,23 @@ nat run --config_file configs/planner.yml \
 
 Phoenix UI: http://localhost:6006, project `a2a-demo`.
 
-## The three beats
+## What to look at
 
-**Beat 1 — the span tree inside one agent.**
-Open the researcher's trace. You get the ReAct loop as a nested tree: a `<workflow>` root, the agent
-workflow beneath it, and a `wiki_search` span for each Wikipedia call, each with its own latency.
-This is the thing per-component logging cannot give you, because the structure is the information.
+**Beat 1 — the handoff, traced end to end.** `configs/chain.yml`, the tree above. One agent calls
+another, and you can follow the request down and the answer back up without leaving the trace. This
+is what tracing gives you that logging does not: not more detail, structure. A log file has the same
+events in it, flat, in time order.
 
-One caveat, because it is easy to promise more than Phoenix shows here. **There are no LLM spans and
-no token counts.** Every span nat emits on this path is `spanKind: chain` with a null token count.
-nat *has* an `LLM` span kind and maps `LLM_START` to it, but the component that emits those events,
+One caveat, because it is easy to promise more than Phoenix shows. **There are no LLM spans and no
+token counts.** Every span nat emits on this path is `spanKind: chain` with a null token count. nat
+*has* an `LLM` span kind and maps `LLM_START` to it, but the component that emits those events,
 `LangchainProfilerHandler`, is only attached in
-`nat/plugins/langchain/control_flow/sequential_executor.py`. The `react_agent` path never attaches
-it. So you can show nesting, latency and repeated siblings, but not prompts, completions or cost.
+`nat/plugins/langchain/control_flow/sequential_executor.py`, and the `react_agent` path never
+attaches it. Show nesting, latency and outputs. Do not promise prompts or cost.
+
+**Beat 2 — the same handoff, over A2A, in pieces.** Run act two above and look at the trace list.
+
+## The A2A beats
 
 **Beat 2 — the gap at the process boundary.**
 You will see two separate root traces at the same timestamp, one for the planner and one for the
@@ -177,8 +216,9 @@ yourself properly.
 
 | File | What it is |
 |---|---|
-| `configs/researcher.yml` | Agent B. `front_end: a2a` on :9002, `wiki_search` tool, Phoenix exporter |
-| `configs/planner.yml` | Agent A. `a2a_client_shared` function group pointed at :9002, Phoenix exporter |
+| `configs/chain.yml` | **The main demo.** Both agents in one process, traced as one chain |
+| `configs/researcher.yml` | Act two, agent B. `front_end: a2a` on :9002, `wiki_search` tool |
+| `configs/planner.yml` | Act two, agent A. `a2a_client_shared` function group pointed at :9002 |
 | `plugin/` | Two compatibility shims the demo cannot run without on 1.8.0. See below |
 | `docker-compose.yml` | Phoenix, UI and OTLP collector on 6006 |
 | `scripts/setup.sh` | Setup for Ubuntu, Debian, WSL2, macOS |

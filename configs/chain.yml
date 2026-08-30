@@ -1,0 +1,84 @@
+# One agent handing work to another, in a single process, traced as one chain.
+# Run with:  nat run --config_file configs/chain.yml --input "..."
+#
+# This is the config behind the main demo. Two agents: a planner that owns the
+# conversation, and a researcher it delegates lookups to. Because both run in one
+# process, Phoenix draws the whole handoff as a single nested tree:
+#
+#     planner                 <- named below, this is the root span
+#       <workflow>            <- nat's own entry-function wrapper, not an agent
+#         researcher          <- span name comes from the function key
+#           wiki_search
+#           wiki_search
+#
+# Read the tree downwards for the request path, and each span's Output upwards for
+# the response path. The answer visibly condenses at every handoff: wiki_search
+# returns raw Wikipedia documents, the researcher returns a sentence, the planner
+# returns the short answer the user asked for.
+#
+# See configs/planner.yml and configs/researcher.yml for the same two agents split
+# across an A2A hop, where this single tree breaks into two disconnected traces.
+
+general:
+  telemetry:
+    tracing:
+      phoenix:
+        _type: phoenix
+        endpoint: http://localhost:6006/v1/traces
+        project: a2a-demo
+
+llms:
+  nim_llm:
+    _type: nim
+    model_name: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
+    # Model choice is load-bearing here, and most of the catalog does not work:
+    #   - meta/llama-3.3-70b-instruct (the original pin) is retired -> HTTP 410 Gone
+    #   - gpt-oss-20b returns an empty `content` -> ReActAgentParsingFailedError
+    #   - nemotron-3-super / -ultra answer with bare JSON, not Thought:/Action:
+    # This one emits clean ReAct text and a final answer with no reasoning preamble.
+    temperature: 0.0
+    # Reasoning models spend part of this budget before emitting any answer. At 1024,
+    # gpt-oss-20b returned an empty completion and the agent died with
+    # ReActAgentParsingFailedError "LLM output: ''". Leave headroom.
+    max_tokens: 4096
+
+functions:
+  wiki_search:
+    _type: wiki_search
+    max_results: 2
+
+  # Agent B. The function key is what Phoenix shows as the span name, so name these
+  # for the audience: `researcher` reads far better in a trace than `agent_2`.
+  researcher:
+    _type: react_agent
+    llm_name: nim_llm
+    tool_names:
+      - wiki_search
+    max_tool_calls: 4
+    # The planner picks this agent based on this description, so it is a prompt, not
+    # a comment. Say what it is for and what a good question looks like.
+    description: >-
+      Looks facts up on Wikipedia and returns a short factual summary.
+      Ask it a single, self-contained question.
+    # Without this the model answers well-known questions from memory and the trace
+    # has no wiki_search span at all, which is most of what there is to look at.
+    additional_instructions: >-
+      Always call wiki_search before you answer. Never answer from memory, however
+      confident you are. If the searches return nothing useful, say so plainly.
+    verbose: true
+
+# Agent A. Owns the conversation and delegates the lookup.
+workflow:
+  _type: react_agent
+  # This names the root span. Without it the root is just `<workflow>` and the tree
+  # opens with two spans of the same name, which is unreadable on camera.
+  name: planner
+  llm_name: nim_llm
+  tool_names:
+    - researcher
+  max_tool_calls: 4
+  # Reasoning models on this endpoint intermittently return an empty `content` (the
+  # turn lands in `reasoning_content`), which nat reports as
+  # ReActAgentParsingFailedError "LLM output: ''". Retry the turn.
+  parse_agent_response_max_retries: 3
+  verbose: true

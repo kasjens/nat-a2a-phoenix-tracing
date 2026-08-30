@@ -141,21 +141,24 @@ if (Test-DockerRunning) {
 Write-Host ""
 Write-Host "Validating configs"
 if (-not $env:NVIDIA_API_KEY) { $env:NVIDIA_API_KEY = "nvapi-placeholder" }
-foreach ($cfg in @("configs\researcher.yml", "configs\planner.yml")) {
+foreach ($cfg in @("configs\chain.yml", "configs\researcher.yml", "configs\planner.yml")) {
     if ((Invoke-Native { & $venvNat validate --config_file $cfg }) -eq 0) { Write-Ok $cfg }
     else { Write-Fail "$cfg did not validate. See the error with:`n         .venv\Scripts\nat.exe validate --config_file $cfg" }
 }
 
 Write-Host @"
 
-Ready. Two terminals:
+Ready. The main demo is one command:
+
+  .\.venv\Scripts\Activate.ps1
+  nat run --config_file configs\chain.yml --input "Which company makes the H100, and when was it announced? Ask the researcher."
+
+Act two, the same agents split over A2A, needs two terminals:
 
   # terminal 1
-  .\.venv\Scripts\Activate.ps1
   nat start a2a --config_file configs\researcher.yml
 
   # terminal 2
-  .\.venv\Scripts\Activate.ps1
   nat run --config_file configs\planner.yml --input "Which company makes the H100, and when was it announced? Use the researcher."
 
 Then open http://localhost:6006 and pick the a2a-demo project.
