@@ -83,6 +83,87 @@ ok "nvidia-nat ${NAT_VERSION} + phoenix, langchain, a2a"
 pip install --quiet -e ./plugin
 ok "nat-demo-shims (a2a_client_shared + wikipedia user-agent)"
 
+# --- Browser UI -----------------------------------------------------------
+# The chat UI is a separate NVIDIA project, not part of nvidia-nat, so it has to be
+# fetched. Two instances are set up: one pointed at the planner (:8001) and one at the
+# bare model (:8002), because a UI instance talks to exactly one backend and Scene 1 of
+# the demo needs both on screen. See docs/ui.md.
+#
+# Skipped, with a warning, if node is missing -- the CLI demo does not need any of this.
+UI_REPO="https://github.com/NVIDIA/NeMo-Agent-Toolkit-UI.git"
+
+# Replace KEY=... in an env file, or append it if absent. Idempotent, so re-running the
+# script does not accumulate duplicate keys or re-patch an already-patched value.
+set_env_key() {
+  local file="$1" key="$2" value="$3"
+  if grep -qE "^${key}=" "$file"; then
+    local tmp; tmp="$(mktemp)"
+    grep -vE "^${key}=" "$file" > "$tmp" && printf '%s=%s\n' "$key" "$value" >> "$tmp" && mv "$tmp" "$file"
+  else
+    printf '%s=%s\n' "$key" "$value" >> "$file"
+  fi
+}
+
+echo
+echo "Browser UI"
+if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+  if [ ! -d ui/.git ]; then
+    if git clone --depth 1 "$UI_REPO" ui >/dev/null 2>&1; then
+      ok "cloned NeMo-Agent-Toolkit-UI"
+    else
+      warn "could not clone $UI_REPO -- check your network, or clone it into ./ui yourself"
+    fi
+  else
+    ok "reusing ./ui"
+  fi
+
+  if [ -d ui ]; then
+    if [ ! -d ui/node_modules ]; then
+      (cd ui && npm ci --no-audit --no-fund >/dev/null 2>&1) \
+        && ok "npm ci (about 1100 packages)" || warn "npm ci failed in ./ui"
+    else
+      ok "ui/node_modules present"
+    fi
+
+    # instance 1: the planner
+    if [ -f ui/.env ]; then
+      set_env_key ui/.env NAT_BACKEND_URL "http://127.0.0.1:8001"
+      set_env_key ui/.env PORT "3000"
+      set_env_key ui/.env NEXT_INTERNAL_URL "http://localhost:3099"
+      # this one is why the remote agent's reasoning shows up in the chat window
+      set_env_key ui/.env NEXT_PUBLIC_NAT_ENABLE_INTERMEDIATE_STEPS "true"
+      set_env_key ui/.env NEXT_PUBLIC_NAT_WORKFLOW "Planner"
+      set_env_key ui/.env NEXT_PUBLIC_NAT_GREETING_TITLE '"Ask the planner"'
+      set_env_key ui/.env NEXT_PUBLIC_NAT_GREETING_SUBTITLE '"It will delegate anything factual to the researcher."'
+      ok "ui/.env -> planner on :8001, browse :3000"
+    else
+      warn "ui/.env not found; the upstream layout may have changed"
+    fi
+
+    # instance 2: the bare model, for Scene 1. node_modules is symlinked rather than
+    # installed twice; the internal Next port must differ or the two dev servers fight.
+    if [ -d ui/node_modules ]; then
+      rm -rf ui-model-only
+      mkdir -p ui-model-only
+      (cd ui && tar cf - --exclude=node_modules --exclude=.next --exclude=.git .) \
+        | (cd ui-model-only && tar xf -)
+      ln -sfn "$REPO_ROOT/ui/node_modules" ui-model-only/node_modules
+      set_env_key ui-model-only/.env NAT_BACKEND_URL "http://127.0.0.1:8002"
+      set_env_key ui-model-only/.env PORT "3001"
+      set_env_key ui-model-only/.env NEXT_INTERNAL_URL "http://localhost:3098"
+      set_env_key ui-model-only/.env NEXT_PUBLIC_NAT_ENABLE_INTERMEDIATE_STEPS "false"
+      set_env_key ui-model-only/.env NEXT_PUBLIC_NAT_WORKFLOW "Model only"
+      set_env_key ui-model-only/.env NEXT_PUBLIC_NAT_GREETING_TITLE '"Ask the model"'
+      set_env_key ui-model-only/.env NEXT_PUBLIC_NAT_GREETING_SUBTITLE '"No tools. It answers from memory."'
+      sed -i 's/next dev -p 3099/next dev -p 3098/' ui-model-only/package.json
+      ok "ui-model-only/.env -> bare model on :8002, browse :3001"
+    fi
+  fi
+else
+  warn "node/npm not found, skipping the browser UI. The CLI demo does not need it."
+  warn "  install Node 18+ if you want the chat window: https://nodejs.org"
+fi
+
 # --- Phoenix --------------------------------------------------------------
 echo
 echo "Phoenix"

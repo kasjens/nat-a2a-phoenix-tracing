@@ -2,8 +2,12 @@
 
 The demo is presented through a chat window rather than a terminal. The UI is a separate NVIDIA
 project — [NeMo-Agent-Toolkit-UI](https://github.com/NVIDIA/NeMo-Agent-Toolkit-UI) — and is not part
-of `nvidia-nat`, so `scripts/setup.sh` does not install it. It is a Next.js app: `npm ci`, then
-`npm run dev`.
+of `nvidia-nat`. It is a Next.js app.
+
+`scripts/setup.sh` fetches and configures it, into two directories: `ui/` pointed at the planner and
+`ui-model-only/` pointed at the bare model. Both are gitignored. Start each with `npm run dev` from
+its own directory. If node is not on your PATH the script says so and carries on — nothing else in
+the repo needs it.
 
 ## It shows the *remote* agent's reasoning, which is the whole point
 
@@ -43,8 +47,10 @@ nat serves the same workflow on all four, so it does not let you reach a second 
 
 **Consequence:** showing two different workflows side by side needs **two UI instances**. That is
 how Scene 1 of the demo works — the bare model on `:3001`, the planner on `:3000`, two browser tabs.
-A second instance needs four things changed, and a symlinked `node_modules` so you do not install
-twice:
+The setup script does this for you; the table is here so you know what it changed, and so you can
+do it by hand if you are working from a UI checkout of your own. `node_modules` is symlinked on
+Unix so the second instance costs nothing; the PowerShell script copies it instead, because
+symlinks on Windows need Developer Mode or an elevated shell.
 
 | Setting | First instance | Second |
 |---|---|---|

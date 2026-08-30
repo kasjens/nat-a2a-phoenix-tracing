@@ -117,6 +117,79 @@ if ((Invoke-Native { & $venvPy -m pip install --quiet -e ./plugin }) -ne 0) {
 }
 Write-Ok "nat-demo-shims (a2a_client_shared + wikipedia user-agent)"
 
+# --- Browser UI --------------------------------------------------------------
+# The chat UI is a separate NVIDIA project, not part of nvidia-nat, so it has to be
+# fetched. Two instances: one pointed at the planner (:8001) and one at the bare model
+# (:8002), because a UI instance talks to exactly one backend and Scene 1 of the demo
+# needs both on screen. See docs\ui.md. Skipped with a warning if node is missing.
+$UiRepo = "https://github.com/NVIDIA/NeMo-Agent-Toolkit-UI.git"
+
+# Replace KEY=... in an env file, or append it if absent. Idempotent, so re-running does
+# not accumulate duplicate keys.
+function Set-EnvKey {
+    param([string] $File, [string] $Key, [string] $Value)
+    $lines = @(Get-Content -LiteralPath $File | Where-Object { $_ -notmatch "^$([regex]::Escape($Key))=" })
+    $lines += "$Key=$Value"
+    Set-Content -LiteralPath $File -Value $lines -Encoding UTF8
+}
+
+Write-Host ""
+Write-Host "Browser UI"
+$node = Get-Command node -ErrorAction SilentlyContinue
+$npm  = Get-Command npm  -ErrorAction SilentlyContinue
+if ($node -and $npm) {
+    if (-not (Test-Path "ui\.git")) {
+        if ((Invoke-Native { git clone --depth 1 $UiRepo ui }) -eq 0) { Write-Ok "cloned NeMo-Agent-Toolkit-UI" }
+        else { Write-Warn "could not clone $UiRepo -- check your network, or clone it into .\ui yourself" }
+    } else { Write-Ok "reusing .\ui" }
+
+    if (Test-Path "ui") {
+        if (-not (Test-Path "ui\node_modules")) {
+            Push-Location ui
+            $rc = Invoke-Native { npm ci --no-audit --no-fund }
+            Pop-Location
+            if ($rc -eq 0) { Write-Ok "npm ci (about 1100 packages)" } else { Write-Warn "npm ci failed in .\ui" }
+        } else { Write-Ok "ui\node_modules present" }
+
+        if (Test-Path "ui\.env") {
+            Set-EnvKey "ui\.env" "NAT_BACKEND_URL" "http://127.0.0.1:8001"
+            Set-EnvKey "ui\.env" "PORT" "3000"
+            Set-EnvKey "ui\.env" "NEXT_INTERNAL_URL" "http://localhost:3099"
+            # this one is why the remote agent's reasoning shows up in the chat window
+            Set-EnvKey "ui\.env" "NEXT_PUBLIC_NAT_ENABLE_INTERMEDIATE_STEPS" "true"
+            Set-EnvKey "ui\.env" "NEXT_PUBLIC_NAT_WORKFLOW" "Planner"
+            Set-EnvKey "ui\.env" "NEXT_PUBLIC_NAT_GREETING_TITLE" '"Ask the planner"'
+            Set-EnvKey "ui\.env" "NEXT_PUBLIC_NAT_GREETING_SUBTITLE" '"It will delegate anything factual to the researcher."'
+            Write-Ok "ui\.env -> planner on :8001, browse :3000"
+        } else { Write-Warn "ui\.env not found; the upstream layout may have changed" }
+
+        # instance 2: the bare model, for Scene 1. Windows has no cheap symlink for an
+        # unprivileged user, so node_modules is copied rather than linked -- slower and
+        # larger than the Unix path, but it does not need Developer Mode.
+        if (Test-Path "ui\node_modules") {
+            if (Test-Path "ui-model-only") { Remove-Item -Recurse -Force "ui-model-only" }
+            New-Item -ItemType Directory -Path "ui-model-only" | Out-Null
+            Get-ChildItem -Path "ui" -Force |
+                Where-Object { $_.Name -notin @("node_modules", ".next", ".git") } |
+                ForEach-Object { Copy-Item -Recurse -Force -LiteralPath $_.FullName -Destination "ui-model-only" }
+            Copy-Item -Recurse -Force -LiteralPath "ui\node_modules" -Destination "ui-model-only\node_modules"
+            Set-EnvKey "ui-model-only\.env" "NAT_BACKEND_URL" "http://127.0.0.1:8002"
+            Set-EnvKey "ui-model-only\.env" "PORT" "3001"
+            Set-EnvKey "ui-model-only\.env" "NEXT_INTERNAL_URL" "http://localhost:3098"
+            Set-EnvKey "ui-model-only\.env" "NEXT_PUBLIC_NAT_ENABLE_INTERMEDIATE_STEPS" "false"
+            Set-EnvKey "ui-model-only\.env" "NEXT_PUBLIC_NAT_WORKFLOW" "Model only"
+            Set-EnvKey "ui-model-only\.env" "NEXT_PUBLIC_NAT_GREETING_TITLE" '"Ask the model"'
+            Set-EnvKey "ui-model-only\.env" "NEXT_PUBLIC_NAT_GREETING_SUBTITLE" '"No tools. It answers from memory."'
+            (Get-Content "ui-model-only\package.json") -replace 'next dev -p 3099', 'next dev -p 3098' |
+                Set-Content "ui-model-only\package.json" -Encoding UTF8
+            Write-Ok "ui-model-only\.env -> bare model on :8002, browse :3001"
+        }
+    }
+} else {
+    Write-Warn "node/npm not found, skipping the browser UI. The CLI demo does not need it."
+    Write-Warn "  install Node 18+ if you want the chat window: https://nodejs.org"
+}
+
 # --- Phoenix ----------------------------------------------------------------
 Write-Host ""
 Write-Host "Phoenix"

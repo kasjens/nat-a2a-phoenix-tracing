@@ -23,13 +23,10 @@ Running time is about seven minutes, plus questions.
 
 1. `bash scripts/setup.sh`, or `scripts\setup.ps1` on Windows. It should end with green `ok` lines
    for the config files.
-2. **Install the UI once.** The chat front end is a separate NVIDIA project:
-   ```bash
-   git clone https://github.com/NVIDIA/NeMo-Agent-Toolkit-UI.git ui && cd ui && npm ci
-   ```
-   In its `.env` set `NAT_BACKEND_URL=http://127.0.0.1:8001` and
-   `NEXT_PUBLIC_NAT_ENABLE_INTERMEDIATE_STEPS=true`. The second one is not optional — it is what
-   makes Scene 3 work.
+2. **The UI comes from step 1.** `setup.sh` clones the chat front end and configures both instances
+   — `./ui` for the planner and `./ui-model-only` for Scene 1's bare model — provided node is on
+   your PATH. If it warned that node was missing, install Node 18+ and re-run it; the script is safe
+   to re-run and will skip what is already done.
 3. **Check the ports are free** before anything else: `ss -ltn | grep -E ':(8001|9002|3000|6006)'`
    should print nothing. The fastapi front end defaults to 8000, which OnlyOffice and plenty else
    will have taken — this repo uses 8001 for that reason.

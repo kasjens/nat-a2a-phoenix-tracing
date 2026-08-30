@@ -20,8 +20,8 @@ pass `nat validate` and have been run end to end.
 - Python 3.11 or newer
 - Docker, for Phoenix
 - An API key from [build.nvidia.com](https://build.nvidia.com), free tier is enough
-- Node 18+ and npm, **only** if you want the browser UI — it is a separate NVIDIA project and the
-  setup scripts do not install it. See [docs/ui.md](docs/ui.md).
+- Node 18+ and npm, **only** if you want the browser UI. The setup scripts fetch and configure it
+  when node is present, and skip it with a warning when it is not. See [docs/ui.md](docs/ui.md).
 
 No GPU. The model runs on NVIDIA's hosted NIM endpoint. Be aware that the free endpoint has a
 concurrency cap and returns a 503 under load; [docs/models.md](docs/models.md) has the details and
@@ -47,8 +47,8 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 ```
 
 Either script checks Python and Docker, creates `.venv`, installs
-`nvidia-nat[phoenix,langchain,a2a]==1.8.0` and the local `plugin/` package, starts Phoenix, and
-validates the configs. It is safe to re-run. Missing pieces produce a warning rather than a stop,
+`nvidia-nat[phoenix,langchain,a2a]==1.8.0` and the local `plugin/` package, fetches and configures
+the two browser UI instances if node is available, starts Phoenix, and validates every config. It is safe to re-run. Missing pieces produce a warning rather than a stop,
 so one pass shows you everything that needs fixing.
 
 ## Run
@@ -127,8 +127,12 @@ nat start a2a --config_file configs/researcher.yml        # terminal 1, must be 
 nat start fastapi --config_file configs/planner-ui.yml    # terminal 2
 ```
 
-Point the UI's `NAT_BACKEND_URL` at `http://127.0.0.1:8001` and run it with `npm run dev`. Set
-`NEXT_PUBLIC_NAT_ENABLE_INTERMEDIATE_STEPS=true` and it renders the agent's reasoning steps inline.
+`scripts/setup.sh` clones and configures it for you, into `./ui` (the planner, on `:3000`) and
+`./ui-model-only` (the bare model, on `:3001`). Both are gitignored. Start them with `npm run dev`
+from their directories.
+
+The setup sets `NEXT_PUBLIC_NAT_ENABLE_INTERMEDIATE_STEPS=true` on the planner instance, which is
+what renders the agent's reasoning steps inline.
 
 That setting does more than it sounds like. Because the step relay replays the *remote* agent's steps
 into the caller's stream, and the UI subscribes to that same stream, the researcher's own reasoning —

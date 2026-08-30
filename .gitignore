@@ -10,3 +10,7 @@ __pycache__/
 
 # local editable install of plugin/
 *.egg-info/
+
+# browser UI, fetched by scripts/setup.sh (see docs/ui.md)
+ui/
+ui-model-only/
