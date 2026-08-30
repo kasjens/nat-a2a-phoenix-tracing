@@ -46,6 +46,9 @@ functions:
 
 workflow:
   _type: react_agent
+  # Names the root span. Without it the root is the literal placeholder `<workflow>`,
+  # which reads terribly on a projector. See docs/tracing.md.
+  name: planner
   llm_name: nim_llm
   tool_names:
     - researcher

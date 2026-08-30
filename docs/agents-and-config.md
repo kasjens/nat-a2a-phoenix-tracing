@@ -180,6 +180,11 @@ different failures, all measured:
 | "Always use the researcher tool…" | Delegated, then `Recursion limit of 10 reached` |
 | plus "call it with a single input_message string…" | Returned the tool-call JSON as the final answer |
 
+Returning the tool call as the answer is not only a bad-instruction failure — it also happens
+spontaneously. Measured over nine otherwise-identical A2A runs with instructions that work: seven
+delegated correctly, two printed `{"action": "researcher__call", ...}` as the final answer in about
+1.4 seconds without ever calling anything. There is no fix here beyond retrying; budget for it.
+
 Instructions on the calling agent compete with the ReAct prompt template, and the model ends up
 negotiating with the format instead of following it.
 
@@ -190,6 +195,32 @@ negotiating with the format instead of following it.
 2. **Ask something the model cannot answer from memory.** If it thinks it knows, it will answer.
 
 **Measured.**
+
+### The callee gives up after one search
+
+Delegation working is not the same as the answer being right. A separate failure, measured on 3 of 5
+runs over A2A: the researcher ran a single `wiki_search`, did not find the fact, and answered "not
+available" — with a perfect trace showing exactly that.
+
+The cause was its own instructions. `additional_instructions` ended with "If the searches return
+nothing useful, say so plainly", which reads as permission to stop after one attempt. The first query
+is usually the user's question verbatim, and a Wikipedia *article title* rarely matches a question.
+
+The fix is to make a second attempt mandatory before it may conclude anything, and to tell it to
+search for the likely article title rather than the question:
+
+```yaml
+additional_instructions: >-
+  ... Search for the most likely Wikipedia article *title* rather than the question ...
+  If your first search does not contain the fact, you must try at least one more search
+  with different wording before concluding anything.
+```
+
+**Measured**: after the change, the researcher searched `Computerworld` directly and answered
+correctly on the first try, and the whole run dropped from 33s to 12s.
+
+The general lesson is that an escape hatch in an agent's instructions will be taken at the first
+opportunity. If you give it a way to say "I could not find it", say how hard it has to try first.
 
 ### The nested agent's input schema
 
@@ -237,3 +268,33 @@ llms:
 
 **Measured** — it validates and reaches the model. Whether the model does anything useful with it is
 a separate question; see [models.md](models.md).
+
+
+---
+
+## An A2A error response discards the message body
+
+Worth knowing if you ever attach anything to an A2A response. The nat adapter's error path does this
+(`nat/plugins/a2a/server/agent_executor_adapter.py`):
+
+```python
+except Exception as e:
+    error_message = new_agent_text_message(f"An error occurred ...")
+    await event_queue.enqueue_event(error_message)
+    raise ServerError(error=InternalError()) from e
+```
+
+It enqueues a `Message` and *then* raises. The JSON-RPC layer turns the raised `ServerError` into an
+error response, so the message it just enqueued — and anything you put on its `metadata` — never
+reaches the caller. What the client sees is:
+
+```
+a2a.client.errors.A2AClientJSONRPCError: JSON-RPC Error code=-32603 message='Internal error'
+```
+
+`InternalError` does have a `data` field, and the adapter leaves it empty, so that is the one place
+on the error path where a payload survives the trip. `plugin/nat_demo_shims/a2a_step_relay.py` uses
+it to get the failed call's telemetry home.
+
+**Measured**, on a run where the researcher's ReAct loop failed: 47 steps were attached to the
+message and none of them arrived.

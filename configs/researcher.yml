@@ -45,6 +45,9 @@ functions:
 
 workflow:
   _type: react_agent
+  # Names the root span. This is the span the planner's step relay replays into its own
+  # trace, so this name is what the audience reads inside the planner's tree.
+  name: researcher
   llm_name: nim_llm
   tool_names:
     - wiki_search
@@ -55,8 +58,16 @@ workflow:
   parse_agent_response_max_retries: 3
   # Without this the model answers well-known questions from memory, the trace has no
   # wiki_search span at all, and beat 1 has nothing to show.
+  # "Say so plainly" on its own licenses the agent to give up after one search, which it
+  # did on 3 of 5 measured runs -- the trace was perfect and the answer was "not available".
+  # Requiring a second, differently-phrased search before it may conclude that fixes it:
+  # the first query is usually the question verbatim, and the article title is rarely that.
   additional_instructions: >-
     Always call wiki_search before you answer. Never answer from memory, however confident
     you are: every fact in your final answer must come from a wiki_search result in this
-    conversation. If the searches return nothing useful, say so plainly.
+    conversation. Search for the most likely Wikipedia article *title* rather than the
+    question: for a question about a publication, search its name on its own first. If your
+    first search does not contain the fact, you must try at least one more search with
+    different wording before concluding anything. Only after at least two genuinely
+    different searches have failed may you say the answer was not found.
   verbose: true

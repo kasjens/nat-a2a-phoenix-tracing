@@ -2,7 +2,7 @@
 
 What Phoenix actually shows you when nat is driving, which is not quite what you would assume.
 
-## There are no LLM spans and no token counts
+## There are no LLM spans and no token counts, out of the box
 
 This is the one most likely to embarrass you in front of an audience.
 
@@ -25,13 +25,28 @@ nat/plugins/langchain/control_flow/sequential_executor.py:147
     profiler_config = {'callbacks': [LangchainProfilerHandler()]}
 ```
 
-The `react_agent` path never attaches it. `react_agent` does declare
-`framework_wrappers=[LLMFrameworkEnum.LANGCHAIN]`, but we could not find anything that consumes that
-to install the handler.
+The `react_agent` path never attaches it.
 
-**Measured** for the absence of spans and tokens. **Read from source** for the cause.
+`react_agent` does declare `framework_wrappers=[LLMFrameworkEnum.LANGCHAIN]`, and the registration
+decorators document that argument as being "for automatic profiler hooking"
+(`nat/cli/register_workflow.py:99`). It does nothing. Grepping the installed package for *reads* of
+that attribute returns **no hits at all** — every occurrence is a decorator passing it in, or the
+field declaration that stores it (`nat/cli/type_registry.py:267`). The hook point exists in the API
+and was never wired to anything.
 
-What you *can* show: nesting, latency per step, and each span's input and output.
+**Measured** for the absence of spans and tokens. **Read from source** for the cause, including the
+zero-readers result for `framework_wrappers`.
+
+### Getting them anyway
+
+[`plugin/nat_demo_shims/llm_spans.py`](../plugin/nat_demo_shims/llm_spans.py) attaches the handler
+the way langchain intends handlers to be attached globally — `register_configure_hook` binds a
+context variable whose contents are added to every callback manager langchain builds — so the
+agent's LLM calls are caught without patching nat's client factory or the agent itself.
+
+Measured, driving a langchain model with the shim loaded: `LLM_START` and `LLM_END` steps are
+emitted, carrying the prompt (`chat_inputs`) and completion (`chat_responses`), and both map to
+`spanKind: LLM`. `NAT_DEMO_NO_LLM_SPANS=1` turns it off.
 
 ---
 
@@ -168,16 +183,91 @@ if parent_span is None:
 
 `runner.py:124` will happily set the root step's parent to `workflow_parent_id` if you provide one,
 and nat parses a `workflow-parent-id` header for exactly this purpose — but a parent id minted in
-the caller's process is not in the callee's span stack, so feeding one across the wire would
-**delete** the callee's root span rather than reparent it. Real cross-process nesting needs a change
-inside `span_exporter`.
+the caller's process is not in the callee's span stack, so feeding one across the wire cannot
+reparent the callee's root.
 
 **Measured** for the one-trace result. **Read from source** for why nesting does not follow.
 
+### Propagating a span id is the wrong lever
+
+It is tempting to conclude from the above that cross-process nesting needs a change inside
+`span_exporter`. It does not. nat has a second mechanism for this, and it is the one that works:
+
+```python
+# nat/builder/intermediate_step_manager.py:192
+def push_intermediate_steps(self, steps: list[IntermediateStep]) -> None:
+    """Inject a sequence of intermediate steps into the event stream ... Used to replay steps
+    from a remote workflow (for example, from a /generate/full response) into the current
+    workflow's observability stream so the full tree is visible."""
+```
+
+There is a complete worked example in `nat/experimental/relay_telemetry_bridge.py`, which folds
+NeMo Relay's out-of-process events into the active nat trace by re-parenting them onto
+`context.active_span_id`.
+
+So nat's own answer to cross-process tracing is not "propagate a span id downstream". It is **"have
+the callee hand its steps back, and let the caller replay them into its own stream as if they had
+happened locally"**. That is wired up for the `/generate/full` HTTP path and for Relay. It is not
+wired up for A2A.
+
+[`plugin/nat_demo_shims/a2a_step_relay.py`](../plugin/nat_demo_shims/a2a_step_relay.py) wires it up:
+the server attaches its steps to the A2A response `Message.metadata`, and the client re-parents the
+remote root onto the planner's open call span and replays them. Because the replayed START events
+land in the *caller's* span stack, the parent lookup that fails for a foreign span id now succeeds.
+
+**Measured on a real two-process A2A run**, planner and researcher in separate processes against a
+live model, spans captured off the wire:
+
+| | traces | root spans | remote tree nested | LLM spans |
+|---|---|---|---|---|
+| stock 1.8.0 | 2 | 2 | no | 0 |
+| `traceparent` shim | 1 | 2 | no | 0 |
+| + `llm_spans` + step relay | **1** | **1** | **yes** | **6** |
+
+```
+<workflow>                                  <- one root
+  nemotron               [LLM]  1406 tokens
+  researcher__call       [TOOL]
+    researcher__call     [CHAIN]
+      react_agent        [CHAIN]            <- the remote agent's root, replayed
+        <workflow>
+          nemotron       [LLM]   740 tokens
+          wiki_search    [TOOL]
+          nemotron       [LLM]  3117 tokens
+  nemotron               [LLM]  1472 tokens
+```
+
+### Two things only a real run showed
+
+**Per-token steps swamp the payload.** `LangchainProfilerHandler` pushes an `LLM_NEW_TOKEN` step per
+streamed token, and `span_exporter.export` reacts only to START and END — so chunks can never become
+spans. One request produced **982 steps, ~950 of them chunks**. The relay filters to START/END before
+serializing.
+
+**Publication has to be negotiated, or the work is traced twice.** If the callee exports its own
+spans *and* the caller replays them, you get 2 roots and 18 spans where one tree of 9 was intended.
+So the caller sets `x-nat-relay-steps: 1` to declare it will collect, and only then does the callee
+skip starting its own exporters for that request. Absent the header nothing changes, so a stock
+caller still gets stock behaviour. A useful side effect: **the callee needs no route to your
+collector at all** — its telemetry goes home in the response it was already sending.
+
+**And a failed call loses its steps unless you look elsewhere.** The A2A adapter enqueues an error
+`Message` and then raises `ServerError`, so JSON-RPC discards the message body. The steps go on
+`InternalError.data` instead, which the adapter leaves empty; the client replays from there and
+re-raises. Worth the trouble, because the failed call is the trace you most want.
+
 ### Practical consequence
 
-If you need to follow a chain end to end, compose agents **in one process**. Across a process
-boundary you can get them into the same trace, but not into the same tree.
+Composing agents **in one process** is still the simplest thing that works. Across a process
+boundary, getting them into one tree is possible, but it is a telemetry-relay problem rather than a
+context-propagation one — and the distinction matters, because the two lead to completely different
+implementations.
+
+There is also a design argument for the relay beyond it being what works. A2A treats agents as
+opaque; sideband telemetry that silently collects a remote agent's prompts sits awkwardly with that
+the moment the two agents belong to different organisations. Replaying steps from the *response*
+inverts the control: the callee decides what to put in `metadata`, so exposure is granted rather
+than taken.
 
 ---
 

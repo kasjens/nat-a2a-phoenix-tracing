@@ -40,6 +40,7 @@ from nat.cli.register_workflow import register_function_group
 from nat.plugins.a2a.client.client_config import A2AClientConfig
 from nat.plugins.a2a.client.client_impl import A2AClientFunctionGroup
 
+from nat_demo_shims.a2a_step_relay import install_client_request_header
 from nat_demo_shims.trace_propagation import install_client_injection
 
 logger = logging.getLogger(__name__)
@@ -72,6 +73,9 @@ async def a2a_client_shared_function_group(config: A2AClientSharedConfig,
             httpx_client = getattr(getattr(group, "_client", None), "_httpx_client", None)
             if httpx_client is not None:
                 install_client_injection(httpx_client)
+                # Declares that this caller will collect the callee's telemetry, so the
+                # callee should not also publish it. See a2a_step_relay.py.
+                install_client_request_header(httpx_client)
             else:
                 logger.warning("A2A client exposed no httpx client; traceparent will not be injected")
             yield group

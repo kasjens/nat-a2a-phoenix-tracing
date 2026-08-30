@@ -13,6 +13,8 @@ dependencies = ["nvidia-nat-a2a==1.8.0"]
 nat_demo_a2a_shared = "nat_demo_shims.a2a_shared"
 nat_demo_wikipedia_ua = "nat_demo_shims.wikipedia_ua"
 nat_demo_trace_propagation = "nat_demo_shims.trace_propagation"
+nat_demo_llm_spans = "nat_demo_shims.llm_spans"
+nat_demo_a2a_step_relay = "nat_demo_shims.a2a_step_relay"
 
 [tool.setuptools]
 packages = ["nat_demo_shims"]
