@@ -233,37 +233,32 @@ Click the newest trace, the one from the run you just did.
 >
 > One trace. Not two.
 
-Point down the tree:
+The panel lists every step in the run: the planner, its model calls, `researcher__call`, the
+**researcher**, and the researcher's own `wiki_search`. A couple of rows are bookkeeping —
+`<workflow>`, and the call span appearing twice. Read straight past them.
 
-```
-planner                        <- the agent that took the question
-  <workflow>
-    nvidia/nemotron...  [LLM]  <- deciding to delegate
-    researcher__send_message   <- picking up the phone
-      researcher               <- a different process, nested inside the call
-        <workflow>
-          nvidia/nemotron...  [LLM]
-          wiki_search         [TOOL]
-          nvidia/nemotron...  [LLM]
-    nvidia/nemotron...  [LLM]  <- writing the final answer
-```
+> Every step of both agents, in one record.
 
-There are a couple of bookkeeping rows — `<workflow>`, and the call span appearing twice. Read
-straight past them; pointing at them costs you a minute.
+**Do not say "look how it's nested" here.** Phoenix's span list in this panel draws flat — every row
+sits at the same indentation whatever its depth. You already showed the shape in the chat window in
+Scene 3; in Phoenix you make the point two other, stronger ways.
 
-**Click the `researcher` span.** Its Input is the question the planner asked it. Its Output is
-`2014`. Its latency is its own.
+**First, the root count.** This trace has exactly one root. The pair you looked at in Scene 4 had
+two.
 
-> That indentation is the handoff. The researcher's work is *inside* the planner's call because the
-> planner is what caused it.
->
-> And this is a different process. It could be a different company. It is in here because the two of
-> them pass the thread along.
+> One record with one beginning, instead of two records with two. That is the difference.
 
-**Open the Attributes tab** and find `nat.function.parent_name`.
+**Then click the `researcher` span.** Its Input is the question the planner asked it, its Output is
+`2014`, and its latency is its own.
 
-> If you would rather read it in words than by indentation — every step records which agent handed
-> it the work.
+> This is a different process. It could be a different company. Its work is in here because the two
+> of them pass the thread along.
+
+**Open the Attributes tab and filter for `parent`.** One row: `nat.function.parent_name` =
+`researcher__call`.
+
+> And if you would rather read it than infer it — every step records which agent handed it the work.
+> That is the audit trail, in words.
 
 Land the point:
 

@@ -10,18 +10,22 @@ The run these came from: **12 spans, one root, answer 2014, 11.9 seconds.**
 
 | File | What it shows |
 |---|---|
-| [scene1-model-alone.txt](scene1-model-alone.txt) | Five unaided asks: `2015, 2013, 2015, 2013, 2019`. Three distinct answers, and **none of them is 2014**, the right one. |
+| [01-model-alone.png](01-model-alone.png) | Five unaided asks: `2015, 2013, 2015, 2013, \boxed{2019}`. The correct answer, 2014, is set apart below the rule and marked as one the model never gave. |
+| [scene1-model-alone.txt](scene1-model-alone.txt) | The same run as raw text. |
 
-Text rather than an image because the playground at build.nvidia.com needs a login. On stage this is
-a browser tab; the numbers are what matters and these are real API calls at temperature 1.0.
+The image is a **rendering of real API output**, not a screenshot of the playground — the playground
+at build.nvidia.com needs a login, so it cannot be captured headlessly. The five answers are genuine
+calls to the NIM endpoint at temperature 1.0. On stage this beat is a browser tab; the numbers are
+what matter.
+
+An earlier version of the text file put "Wikipedia says 2014" on the line directly beneath the asks,
+where it read like a sixth answer from the model. It is not, and both files now keep the correct
+answer visually separate.
 
 Note this is the **Shape A** opening from the script (it varies). Rehearsals also produced Shape B —
 `2017` four times out of five, confidently wrong and consistent — and, once in about thirteen asks,
 Shape C: the model simply gets it right. All three need different opening lines and all three are in
 the script. Check which you have on the day.
-
-The `2014` at the foot of that file is the *correct* answer, given so you can see none of the five
-asks matches it. It is not a sixth answer from the model.
 
 ## Scene 2 — two agents, two services
 
@@ -64,12 +68,22 @@ baked before the demo so the contrast costs no stage time.
 
 | File | What it shows |
 |---|---|
-| [05a-trace-tree.png](05a-trace-tree.png) | One trace, one root: `planner` → `researcher__call` → **`researcher`** → its own `<workflow>`, `wiki_search`, and LLM calls. 11.9s. |
-| [05b-researcher-nested.png](05b-researcher-nested.png) | The remote agent's span selected *inside* that tree — 7.1s, its own Input and Output `2014`. |
-| [05c-attributes.png](05c-attributes.png) | The span's 65 attributes. **Caveat:** the Value column is off the right edge at this width, so `nat.function.parent_name` is not legible here. Widen the window before showing this one, or skip it — the nesting in `05a` makes the same point. |
+| [05a-trace-tree.png](05a-trace-tree.png) | The whole run as one trace, 11.9s: `planner`, `<workflow>`, the LLM calls, `researcher__call`, **`researcher`**, and its own `wiki_search` calls. |
+| [05b-researcher-nested.png](05b-researcher-nested.png) | The remote agent's span selected — 7.1s, its own Input (the question the planner asked it) and Output `2014`. |
+| [05c-attributes.png](05c-attributes.png) | **`nat.function.parent_name` = `researcher__call`** — the handoff stated in words rather than implied by position. |
 
-Attribution was verified out of band via Phoenix's GraphQL API: the `researcher` span carries
-`nat.function.parent_name = researcher__call`, which is the planner's A2A call.
+**One thing to know before you present this.** Phoenix's span list in the trace panel renders
+**flat**: every row sits at the same indentation regardless of depth (measured — all twelve nodes at
+the same `left` offset). So you cannot point at indentation here and say "look, it's nested". The
+nesting is real, but in Phoenix you evidence it two other ways:
+
+- **`04b-root-spans.png`** — filtered to roots, the live run contributes exactly **one**, where the
+  stock run contributes two. One root means one tree.
+- **`05c-attributes.png`** — `parent_name` names the calling function outright.
+
+The place the hierarchy *is* drawn visually is the chat UI, in `03e`/`03g`, where the remote agent's
+steps are plainly nested inside the planner's call. That is the better screen for the shape; Phoenix
+is the better screen for the record and the attribution.
 
 ## Reproducing
 
