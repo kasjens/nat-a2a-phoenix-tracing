@@ -120,7 +120,7 @@ Ready. The main demo is one command:
 
   source .venv/bin/activate
   nat run --config_file configs/chain.yml \
-    --input "Which company makes the H100, and when was it announced? Ask the researcher."
+    --input "In which year did Computerworld publish its final print issue? Ask the researcher."
 
 Act two, the same agents split over A2A, needs two terminals:
 

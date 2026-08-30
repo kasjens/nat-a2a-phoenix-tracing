@@ -151,7 +151,7 @@ Write-Host @"
 Ready. The main demo is one command:
 
   .\.venv\Scripts\Activate.ps1
-  nat run --config_file configs\chain.yml --input "Which company makes the H100, and when was it announced? Ask the researcher."
+  nat run --config_file configs\chain.yml --input "In which year did Computerworld publish its final print issue? Ask the researcher."
 
 Act two, the same agents split over A2A, needs two terminals:
 

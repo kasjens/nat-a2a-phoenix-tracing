@@ -1,6 +1,12 @@
 # One agent handing work to another, in a single process, traced as one chain.
 # Run with:  nat run --config_file configs/chain.yml --input "..."
 #
+# Pick a question the model thinks it knows and gets wrong. Asked directly, this model
+# says Computerworld's last print issue was 2015; Wikipedia says 2014. The chain gets it
+# right, so the handoff is doing visible work rather than just existing. Questions the
+# model can answer from memory are worse than useless here: the planner simply answers
+# them itself, and you get a two-span trace with no handoff in it at all.
+#
 # This is the config behind the main demo. Two agents: a planner that owns the
 # conversation, and a researcher it delegates lookups to. Because both run in one
 # process, Phoenix draws the whole handoff as a single nested tree:
@@ -57,8 +63,13 @@ functions:
     max_tool_calls: 4
     # The planner picks this agent based on this description, so it is a prompt, not
     # a comment. Say what it is for and what a good question looks like.
+    # The planner reads this when deciding whether to delegate, so it is a prompt, not a
+    # comment. Strengthening it here is safer than adding instructions to the planner:
+    # every attempt at that made the model argue with the ReAct template and fail.
     description: >-
-      Looks facts up on Wikipedia and returns a short factual summary.
+      Authoritative lookup for any question of fact. Searches Wikipedia and returns a
+      short, sourced summary. Use this for names, dates, numbers and other specifics
+      rather than relying on your own knowledge, which is often out of date or wrong.
       Ask it a single, self-contained question.
     # Without this the model answers well-known questions from memory and the trace
     # has no wiki_search span at all, which is most of what there is to look at.
@@ -76,7 +87,14 @@ workflow:
   llm_name: nim_llm
   tool_names:
     - researcher
-  max_tool_calls: 4
+  # nat derives langgraph's recursion limit from this as (max_tool_calls + 1) * 2, so 4
+  # gives a budget of 10. The planner sometimes wastes its first delegation by sending
+  # both `messages` and `input_message` (the nested agent accepts one or the other), and
+  # with only 4 it then ran out and died with "Recursion limit of 10 reached".
+  max_tool_calls: 8
+  # Without this the planner answers well-known questions itself and never delegates.
+  # You then get a two-span trace with no handoff in it, which is the entire demo gone.
+  # Asking nicely in the --input is not enough; it has to be in the agent's instructions.
   # Reasoning models on this endpoint intermittently return an empty `content` (the
   # turn lands in `reasoning_content`), which nat reports as
   # ReActAgentParsingFailedError "LLM output: ''". Retry the turn.

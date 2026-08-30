@@ -47,7 +47,8 @@ so one pass shows you everything that needs fixing.
 One command, one process, two agents:
 
 ```bash
-nat run --config_file configs/chain.yml   --input "Which company makes the H100, and when was it announced? Ask the researcher."
+nat run --config_file configs/chain.yml \
+  --input "In which year did Computerworld publish its final print issue? Ask the researcher."
 ```
 
 Activate the venv first: `source .venv/bin/activate` on Linux and macOS,
@@ -62,6 +63,11 @@ planner                 <- agent A, the root span
       wiki_search
       wiki_search
 ```
+
+Ask the model this on its own and it says **2015**, confidently and wrongly. The chain answers
+**2014**, because the researcher actually looked it up. That is the point of the demo in one
+question: pick something the model thinks it knows and gets wrong, so the handoff visibly earns its
+keep instead of merely happening.
 
 Read **down** the tree for the request path, and each span's **Output** back **up** for the
 response path. The answer condenses at every handoff: `wiki_search` returns raw Wikipedia
