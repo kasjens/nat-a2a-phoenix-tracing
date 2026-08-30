@@ -4,8 +4,10 @@ A planner agent delegates a lookup to a researcher agent, the researcher searche
 the answer comes back up the chain. Everything exports to a local Phoenix instance, where the whole
 handoff shows up as one tree you can follow end to end.
 
-Then the same two agents are split across a network with the A2A protocol, and that single tree
-falls apart. That contrast is the second half of the demo.
+The second half of this repo splits the same two agents across a network with the A2A protocol,
+where that single tree falls apart. That part is an engineering write-up rather than a demo: the
+conference script in [demo-script.md](demo-script.md) leaves it out, on the grounds that showing
+things that do not work is a poor use of a stage.
 
 Verified against `nvidia-nat` 1.8.0 (August 2026), which is the latest release. All three config
 files pass `nat validate` and have been run end to end.
@@ -39,7 +41,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 
 Either script checks Python and Docker, creates `.venv`, installs
 `nvidia-nat[phoenix,langchain,a2a]==1.8.0` and the local `plugin/` package, starts Phoenix, and
-validates both configs. It is safe to re-run. Missing pieces produce a warning rather than a stop,
+validates all three configs. It is safe to re-run. Missing pieces produce a warning rather than a stop,
 so one pass shows you everything that needs fixing.
 
 ## Run
@@ -64,10 +66,15 @@ planner                 <- agent A, the root span
       wiki_search
 ```
 
-Ask the model this on its own and it says **2015**, confidently and wrongly. The chain answers
-**2014**, because the researcher actually looked it up. That is the point of the demo in one
-question: pick something the model thinks it knows and gets wrong, so the handoff visibly earns its
-keep instead of merely happening.
+Ask the model this on its own and it gives you a different year almost every time: in testing,
+2013, then 2015, then 2014, then 2013. One of those is right and it cannot tell you which, because
+it is not looking anything up. The chain answers **2014** every time, because the researcher
+actually goes and reads it.
+
+That is the point of the demo in one question. Pick something the model is unreliable about, so the
+handoff visibly earns its keep instead of merely happening. Do not pick something it can answer from
+memory: the planner will simply answer it itself, and you get a two-span trace with no handoff in it
+at all.
 
 Read **down** the tree for the request path, and each span's **Output** back **up** for the
 response path. The answer condenses at every handoff: `wiki_search` returns raw Wikipedia
@@ -77,7 +84,8 @@ To see who handed work to whom in words rather than by nesting, open a span's **
 `nat.function.name` is the agent the span belongs to, and `nat.function.parent_name` is the agent
 that called it.
 
-Roughly three and a half minutes end to end, most of it the researcher's own loop.
+Roughly two minutes end to end, most of it the researcher's own loop. It varies: runs of this
+question measured between 100 and 210 seconds, and the researcher used two to five searches.
 
 ### Act two: the same agents, over a network
 
@@ -109,10 +117,11 @@ Phoenix UI: http://localhost:6006, project `a2a-demo`.
 
 ## What to look at
 
-**Beat 1 — the handoff, traced end to end.** `configs/chain.yml`, the tree above. One agent calls
-another, and you can follow the request down and the answer back up without leaving the trace. This
-is what tracing gives you that logging does not: not more detail, structure. A log file has the same
-events in it, flat, in time order.
+### The handoff, traced end to end
+
+`configs/chain.yml`, the tree above. One agent calls another, and you can follow the request
+down and the answer back up without leaving the trace. This is what tracing gives you that logging
+does not: not more detail, structure. A log file has the same events in it, flat, in time order.
 
 One caveat, because it is easy to promise more than Phoenix shows. **There are no LLM spans and no
 token counts.** Every span nat emits on this path is `spanKind: chain` with a null token count. nat
@@ -121,11 +130,15 @@ token counts.** Every span nat emits on this path is `spanKind: chain` with a nu
 `nat/plugins/langchain/control_flow/sequential_executor.py`, and the `react_agent` path never
 attaches it. Show nesting, latency and outputs. Do not promise prompts or cost.
 
-**Beat 2 — the same handoff, over A2A, in pieces.** Run act two above and look at the trace list.
+## What breaks over A2A
 
-## The A2A beats
+Everything below is about the split-process version, and is the reason this repo started. It is a
+good engineering story and a poor stage demo, because most of it is things not working. The
+conference script in [demo-script.md](demo-script.md) deliberately leaves it out.
 
-**Beat 2 — the gap at the process boundary.**
+### The gap at the process boundary
+
+Run act two above and look at the trace list.
 You will see two separate root traces at the same timestamp, one for the planner and one for the
 researcher, with no parent-child link between them. Nothing in Phoenix tells you the researcher's
 two minutes of work were caused by the planner's request.
@@ -144,15 +157,16 @@ What is missing is the two ends that would actually use it across an A2A hop:
 - **No inject on the client.** `nat/plugins/a2a/client/client_base.py:87` builds a bare
   `httpx.AsyncClient(timeout=...)` and never adds a `traceparent` header.
 - **No extract on the server.** `set_metadata_from_http_request()` runs only for a Starlette
-  `Request` (`session.py:497`), but the A2A adapter calls `session()` with no HTTP request at all
+  `Request` (`session.py:496`), but the A2A adapter calls `session()` with no HTTP request at all
   (`nat/plugins/a2a/server/agent_executor_adapter.py:107`), so the parsing above never runs on this
   path.
 
 So the plumbing exists at the runtime layer and is simply not wired up in the A2A transport. Verified
 against 1.8.0, which is the latest release.
 
-Say this out loud in the video. It is the most useful thing in the demo, it is current, and most
-people assume OpenTelemetry underneath means it just works.
+This is worth being precise about, because "nat has no trace propagation" is the sort of claim
+people check. Most of the surprise here is that everything in the stack says OpenTelemetry on the
+box, so you assume the context flows.
 
 **Can you fix it?** Mostly, yes, and `plugin/` does. It injects a `traceparent` on the A2A client
 and reads it back on the server, which is the two-line gap described above. Measured against a wiped
@@ -170,15 +184,20 @@ parentage through an in-process dictionary: `span_exporter` looks the parent up 
 minted in the other process would delete the researcher's root span rather than reparent it. Real
 cross-process nesting needs a change inside `span_exporter`.
 
-Set `NAT_DEMO_NO_TRACE_PROPAGATION=1` to turn the fix off and get the original two-trace behaviour,
-which is what you want while recording beat 2.
+Set `NAT_DEMO_NO_TRACE_PROPAGATION=1` to turn the fix off and get the original two-trace behaviour.
+It is read at import time, so set it before starting either process.
 
-**Beat 3 — looping inefficiency.**
-Ask for something Wikipedia cannot answer:
+### Looping with no error
+
+This one is not specific to A2A — it happens in `chain.yml` too — but it is worth knowing about.
+
+Ask for something Wikipedia does not have. A conference with no article is a reliable choice:
+searching for "Computerworld Cloud & AI Festival 2026" returns South by Southwest, Tata, Mozilla and
+Xiaomi, so the agent gets plausible-looking results that answer nothing.
 
 ```bash
-nat run --config_file configs/planner.yml \
-  --input "What was Aeven's revenue in 2026? Use the researcher."
+nat run --config_file configs/chain.yml \
+  --input "What is the Computerworld Cloud & AI Festival 2026? Ask the researcher."
 ```
 
 The researcher's ReAct loop re-queries with rephrased arguments until `max_tool_calls` stops it.
@@ -202,8 +221,8 @@ tracing story with sharper edges than it first appears. It is written up in [`do
 
 ## Why `plugin/` exists
 
-Two things in the stock 1.8.0 install stop this demo from running at all. Both fixes are small and
-both are in `plugin/`, installed editable by the setup scripts.
+Two things in the stock 1.8.0 install stop this demo from running at all, and a third is optional.
+All three are in `plugin/`, installed editable by the setup scripts.
 
 **`a2a_client` cannot be used by a `react_agent`.** nat registers it with
 `register_per_user_function_group`, and per-user groups are deliberately skipped during eager
@@ -229,6 +248,10 @@ enforces its UA policy and answers with `HTTP 403` and a plain-text body
 `plugin/` calls `wikipedia.set_user_agent()` once at import. Set `WIKIPEDIA_USER_AGENT` to identify
 yourself properly.
 
+**Trace context across the A2A hop** is the optional third piece, and only matters for act two. It
+injects a `traceparent` on the client and reads it back on the server; see the table above for
+exactly how far that gets you. `NAT_DEMO_NO_TRACE_PROPAGATION=1` turns it off.
+
 ## Files
 
 | File | What it is |
@@ -236,23 +259,26 @@ yourself properly.
 | `configs/chain.yml` | **The main demo.** Both agents in one process, traced as one chain |
 | `configs/researcher.yml` | Act two, agent B. `front_end: a2a` on :9002, `wiki_search` tool |
 | `configs/planner.yml` | Act two, agent A. `a2a_client_shared` function group pointed at :9002 |
-| `plugin/` | Two compatibility shims the demo cannot run without on 1.8.0. See below |
+| `plugin/` | Three shims: two the demo cannot run without on 1.8.0, one optional. See below |
 | `docs/` | What we learned about nat 1.8.0 the hard way, with file:line receipts |
+| `demo-script.md` | Presenter script for the conference demo |
 | `docker-compose.yml` | Phoenix, UI and OTLP collector on 6006 |
 | `scripts/setup.sh` | Setup for Ubuntu, Debian, WSL2, macOS |
 | `scripts/setup.ps1` | Setup for Windows PowerShell |
 | `.env.example` | Template for `NVIDIA_API_KEY` |
 
-## Notes for recording
+## Notes for presenting
 
-- Send one warm-up request before you hit record. The first call to a NIM endpoint can take a long
-  time while the model spins up, and it reads as a broken demo.
-- A full beat 1 run takes roughly three and a half minutes end to end, most of it the researcher's
-  own ReAct loop. Plan the edit around that, or start the run and cut away to the config files.
+The full presenter script is in [demo-script.md](demo-script.md). The essentials:
+
+- Send one warm-up request first. The first call to a NIM endpoint can take a long time while the
+  model spins up, and it reads as a broken demo.
+- A run takes roughly two minutes, and varies. Talk over it rather than watching it.
+- Wipe Phoenix before you present: `docker compose down -v && docker compose up -d`. A clean project
+  means the trace on screen is unmistakably the one you just made. Plain `docker compose down`
+  keeps the volume.
+- Ask the model your question a few times beforehand so you know what it is doing that day. Its
+  unaided answer is not stable, and the opening depends on knowing that.
 - The researcher binds to `127.0.0.1`, and that is not cosmetic. The agent card advertises whatever
-  `host` is set to, and the A2A client dials that address, so `0.0.0.0` makes the planner fail with
-  `503 All connection attempts failed` on Windows. Leaving it on localhost also drops nat's
-  bind-without-auth warning, so nothing extra appears on camera.
-- Phoenix keeps traces in the named volume, so `docker compose down` between takes is safe but
-  `docker compose down -v` wipes them.
-- If you want a clean project per take, change `project:` in both configs.
+  `host` is set to and the A2A client dials that address, so `0.0.0.0` makes the planner fail with
+  `503 All connection attempts failed` on Windows.
