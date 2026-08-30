@@ -11,7 +11,8 @@ in later versions; the symptoms and the reasoning should survive longer than the
 |---|---|
 | [agents-and-config.md](agents-and-config.md) | Composing agents, function groups, why `a2a_client` cannot be used by a `react_agent`, tool budgets, getting a callee to search twice before giving up, what an A2A error response throws away |
 | [tracing.md](tracing.md) | What Phoenix does and does not show, getting LLM spans and token counts at all, span naming, and assembling one tree across a process boundary |
-| [models.md](models.md) | Which models can actually drive a ReAct agent, and how the ones that cannot fail |
+| [models.md](models.md) | Which models can actually drive a ReAct agent, how the ones that cannot fail, and the hosted endpoint's concurrency cap |
+| [ui.md](ui.md) | Driving nat from the NeMo Agent Toolkit UI, and why it shows the remote agent's reasoning |
 | [windows-and-tooling.md](windows-and-tooling.md) | Encoding, PowerShell, and the non-nat things that broke the setup |
 
 ## How to read these
@@ -39,3 +40,9 @@ If you only read one thing:
 5. Both are fixable, and the second one is not fixed the way you would guess. nat's own mechanism
    for cross-process traces is to replay the callee's intermediate steps into the caller's stream,
    not to propagate a span id to the callee. See [tracing.md](tracing.md).
+6. That replay has a second payoff nobody designed for: the chat UI subscribes to the same stream,
+   so the remote agent's reasoning becomes readable live in the caller's window, with no tracing
+   tool open at all. See [ui.md](ui.md).
+7. The hosted endpoint is a moving part. It caps concurrency and returns 503 under load, there is no
+   retry setting on the client, and how that surfaces depends on the workflow. See
+   [models.md](models.md).

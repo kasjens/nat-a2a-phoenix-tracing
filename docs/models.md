@@ -161,3 +161,61 @@ way.
 
 For a demo, that instability is more useful than a single wrong answer: ask three times, get three
 answers, and the point makes itself.
+
+
+---
+
+## The hosted endpoint refuses you under load
+
+Not a model problem, but it looks like one from the demo's point of view. The free NIM endpoint caps
+concurrent requests, and over it you get:
+
+```
+Exception: [503] {'message': 'ResourceExhausted: Worker local total request limit reached (16/16)',
+                  'type': 'Service Unavailable', 'code': 503}
+```
+
+The limit is on the *endpoint's* workers, shared with everyone else using that model, so it is not
+something you can pace your way out of reliably. Measured on the bare-model workflow: roughly **one
+ask in six failed even with 45 seconds between asks**, on an afternoon when the model was busy.
+Earlier the same day, five and six consecutive asks went through cleanly.
+
+How it surfaces depends on the workflow. `chat_completion` catches it and returns
+"I apologize, but I encountered an error while processing your query", which reads to an audience
+like the agent malfunctioning. A `react_agent` will usually retry the turn and carry on.
+
+**There is no retry setting.** `ChatNVIDIA` exposes no `max_retries`, `retry`, `timeout` or
+`request_timeout` field, so this cannot be papered over in config:
+
+```python
+>>> [k for k in ChatNVIDIA.model_fields if 'retr' in k.lower() or 'time' in k.lower()]
+[]
+```
+
+Practically: send a warm-up request before you present, leave real gaps between requests, and have a
+retry gesture built into whatever you are demonstrating — in this repo, Scene 1 asks its question
+three times, so a bad response is covered by simply asking again.
+
+**Measured.**
+
+---
+
+## Reasoning models wrap answers in LaTeX
+
+`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` likes to return its final answer as:
+
+```
+\boxed{2015}
+```
+
+which is fine in a notebook and looks like a bug in a chat window. It is not consistent — the same
+prompt returns a bare `2015` about as often — so you cannot rely on either shape.
+
+A system prompt clause fixes it:
+
+```yaml
+system_prompt: >-
+  ... Do not use LaTeX, markdown, or any markup: write the answer as plain prose.
+```
+
+**Measured**, before and after, on `configs/model-only.yml`.

@@ -141,7 +141,8 @@ if (Test-DockerRunning) {
 Write-Host ""
 Write-Host "Validating configs"
 if (-not $env:NVIDIA_API_KEY) { $env:NVIDIA_API_KEY = "nvapi-placeholder" }
-foreach ($cfg in @("configs\chain.yml", "configs\researcher.yml", "configs\planner.yml")) {
+# Glob rather than a fixed list, so a newly added config cannot go unvalidated.
+foreach ($cfg in (Get-ChildItem -Path "configs\*.yml" | ForEach-Object { $_.FullName })) {
     if ((Invoke-Native { & $venvNat validate --config_file $cfg }) -eq 0) { Write-Ok $cfg }
     else { Write-Fail "$cfg did not validate. See the error with:`n         .venv\Scripts\nat.exe validate --config_file $cfg" }
 }

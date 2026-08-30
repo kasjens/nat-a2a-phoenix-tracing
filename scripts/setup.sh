@@ -104,15 +104,13 @@ fi
 # --- Validate -------------------------------------------------------------
 echo
 echo "Validating configs"
-NVIDIA_API_KEY="${NVIDIA_API_KEY:-nvapi-placeholder}" \
-  nat validate --config_file configs/chain.yml >/dev/null 2>&1 \
-  && ok "configs/chain.yml" || fail "configs/chain.yml did not validate"
-NVIDIA_API_KEY="${NVIDIA_API_KEY:-nvapi-placeholder}" \
-  nat validate --config_file configs/researcher.yml >/dev/null 2>&1 \
-  && ok "configs/researcher.yml" || fail "configs/researcher.yml did not validate"
-NVIDIA_API_KEY="${NVIDIA_API_KEY:-nvapi-placeholder}" \
-  nat validate --config_file configs/planner.yml >/dev/null 2>&1 \
-  && ok "configs/planner.yml" || fail "configs/planner.yml did not validate"
+# Glob rather than a fixed list: the repo has grown from three configs to five, and a
+# new one silently going unvalidated is exactly the kind of thing this script is for.
+export NVIDIA_API_KEY="${NVIDIA_API_KEY:-nvapi-placeholder}"
+for cfg in configs/*.yml; do
+  nat validate --config_file "$cfg" >/dev/null 2>&1 \
+    && ok "$cfg" || fail "$cfg did not validate"
+done
 
 cat <<'EOF'
 

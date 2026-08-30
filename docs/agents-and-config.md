@@ -324,3 +324,47 @@ with an `a2a_client` function group resolves the remote agent card *at startup*,
 must already be listening before you start the planner.
 
 **Measured.** Always scroll past the AttributeError to the first `ERROR:` line.
+
+
+---
+
+## A workflow that is just the model, with no agent around it
+
+`chat_completion` (`nat/tool/chat_completion.py`) is a bare LLM call: a system prompt, an `llm_name`,
+no tools and no agent loop. It is the right thing when you want to show what the model does *without*
+help — `configs/model-only.yml` uses it for the demo's cold open.
+
+```yaml
+workflow:
+  _type: chat_completion
+  name: model-only
+  llm_name: nim_llm
+  system_prompt: >-
+    You are a helpful assistant. Answer directly, in one short sentence.
+```
+
+Two notes. It catches its own exceptions and returns "I apologize, but I encountered an error while
+processing your query" as a normal response, so an endpoint failure looks like an answer rather than
+an error — see [models.md](models.md). And if you want variation between runs, set a non-zero
+`temperature`; at 0 it will repeat itself.
+
+---
+
+## An agent with a good tool will use it whether you hint or not
+
+Worth knowing if you plan to contrast "with tools" against "without" using the same agent. We tried
+to get the planner to answer from memory by simply dropping the "Ask the researcher." hint from the
+question. It delegated anyway, both times, and answered correctly:
+
+```
+"In which year did Computerworld publish its final print issue?"   ->  2014, via researcher__call
+```
+
+The tool description does the work, and the description on an A2A function group comes from the
+remote agent's **agent card**, not from your config — here, "Looks facts up on Wikipedia and returns
+a short factual summary." That is enough for a question that is plainly a lookup.
+
+So the "before" half of a comparison needs a genuinely tool-less workflow. Prompting alone will not
+reliably suppress a tool the agent can see.
+
+**Measured**, twice.

@@ -12,16 +12,20 @@ call that caused it.
 
 A single-process variant (`configs/chain.yml`) is also here, and is the more reliable fallback.
 
-Verified against `nvidia-nat` 1.8.0 (August 2026), which is the latest release. All three config
-files pass `nat validate` and have been run end to end.
+Verified against `nvidia-nat` 1.8.0 (August 2026), which is the latest release. All five config files
+pass `nat validate` and have been run end to end.
 
 ## What you need
 
 - Python 3.11 or newer
 - Docker, for Phoenix
 - An API key from [build.nvidia.com](https://build.nvidia.com), free tier is enough
+- Node 18+ and npm, **only** if you want the browser UI — it is a separate NVIDIA project and the
+  setup scripts do not install it. See [docs/ui.md](docs/ui.md).
 
-No GPU. The model runs on NVIDIA's hosted NIM endpoint.
+No GPU. The model runs on NVIDIA's hosted NIM endpoint. Be aware that the free endpoint has a
+concurrency cap and returns a 503 under load; [docs/models.md](docs/models.md) has the details and
+what it looks like when it happens.
 
 ## Quick start
 
@@ -44,7 +48,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 
 Either script checks Python and Docker, creates `.venv`, installs
 `nvidia-nat[phoenix,langchain,a2a]==1.8.0` and the local `plugin/` package, starts Phoenix, and
-validates all three configs. It is safe to re-run. Missing pieces produce a warning rather than a stop,
+validates the configs. It is safe to re-run. Missing pieces produce a warning rather than a stop,
 so one pass shows you everything that needs fixing.
 
 ## Run
@@ -124,8 +128,16 @@ nat start fastapi --config_file configs/planner-ui.yml    # terminal 2
 ```
 
 Point the UI's `NAT_BACKEND_URL` at `http://127.0.0.1:8001` and run it with `npm run dev`. Set
-`NEXT_PUBLIC_NAT_ENABLE_INTERMEDIATE_STEPS=true` and it renders the agent's reasoning steps inline,
-alongside the Phoenix trace.
+`NEXT_PUBLIC_NAT_ENABLE_INTERMEDIATE_STEPS=true` and it renders the agent's reasoning steps inline.
+
+That setting does more than it sounds like. Because the step relay replays the *remote* agent's steps
+into the caller's stream, and the UI subscribes to that same stream, the researcher's own reasoning —
+its search, its conclusion — appears in the planner's chat window, live, before you open Phoenix at
+all. See [docs/ui.md](docs/ui.md).
+
+`configs/model-only.yml` serves the bare model with no tools on `:8002`, for showing what the model
+does *without* help in the same interface. One UI instance talks to exactly one backend, so that
+needs a second UI instance — [docs/ui.md](docs/ui.md) has the four settings to change.
 
 Two things that will bite you, both written up in
 [docs/agents-and-config.md](docs/agents-and-config.md): the planner resolves the researcher's agent
@@ -314,6 +326,7 @@ tracing story with sharper edges than it first appears. It is written up in [`do
 - [agents-and-config.md](docs/agents-and-config.md) — composing agents, function groups, tool budgets,
   getting an agent to search twice before giving up, and what an A2A error response throws away
 - [tracing.md](docs/tracing.md) — what Phoenix does and does not show, and why
+- [ui.md](docs/ui.md) — the browser UI, and why it shows the remote agent's reasoning
 - [models.md](docs/models.md) — 83 models surveyed, 9 that actually work
 - [windows-and-tooling.md](docs/windows-and-tooling.md) — encoding, PowerShell, Wikipedia, Docker
 

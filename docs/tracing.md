@@ -300,4 +300,14 @@ curl -s -X POST http://localhost:6006/graphql -H "Content-Type: application/json
 
 - Wipe between runs with `docker compose down -v && docker compose up -d`. Trace counts are only
   meaningful against a clean project.
+- **The span list in the trace panel is flat.** Every node renders at the same indentation whatever
+  its depth — measured, all twelve spans of a nested run at an identical `left` offset. There is no
+  tree/flat toggle. So you cannot point at indentation to show nesting; use the root count (one root
+  means one tree) or `nat.function.parent_name`.
+- **There are two search boxes on the trace screen and they do different things.** The one beside the
+  span list filters the *spans* and will empty the tree if you type an attribute name into it. The
+  one beside the `Attributes` heading filters the attribute table. Only the second is useful for
+  finding `parent_name`.
+- **The attribute table is virtualised**, so a row that is not scrolled into view is not in the DOM.
+  Filtering is more reliable than scrolling if you are automating it.
 - The exporter batches, so give it a few seconds before concluding nothing arrived.
