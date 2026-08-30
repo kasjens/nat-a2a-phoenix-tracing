@@ -8,24 +8,31 @@ The run these came from: **12 spans, one root, answer 2014, 11.9 seconds.**
 
 ## Scene 1 — the model on its own
 
+Scene 1 now runs in the **same chat UI** as the rest of the demo, pointed at `configs/model-only.yml`
+— a bare `chat_completion` workflow with no tools, on `:8002`, served to a second UI instance on
+`:3001`. Two browser tabs rather than a cut to a different website, so the only visible difference
+between Scene 1 and Scene 3 is whether the agent can look anything up.
+
 | File | What it shows |
 |---|---|
-| [01-model-alone.png](01-model-alone.png) | Five unaided asks: `2015, 2013, 2015, 2013, \boxed{2019}`. The correct answer, 2014, is set apart below the rule and marked as one the model never gave. |
-| [scene1-model-alone.txt](scene1-model-alone.txt) | The same run as raw text. |
+| [01a-model-only-ui.png](01a-model-only-ui.png) | The model-only chat, headed **Model only** — "No tools. It answers from memory." |
+| [01b-question-typed.png](01b-question-typed.png) | The question, before sending. |
+| [01c-drift-and-a-503.png](01c-drift-and-a-503.png) | The same question three times in one thread: **2017**, then **2013** — and a third ask that came back as the endpoint's error message. Both halves of stage reality in one image. |
+| [01d-answers-summary.png](01d-answers-summary.png) | A separate five-ask run rendered as a card: `2015, 2013, 2015, 2013, \boxed{2019}`, with 2014 set apart as the answer the model never gave. |
+| [scene1-model-alone.txt](scene1-model-alone.txt) | That run as raw text. |
 
-The image is a **rendering of real API output**, not a screenshot of the playground — the playground
-at build.nvidia.com needs a login, so it cannot be captured headlessly. The five answers are genuine
-calls to the NIM endpoint at temperature 1.0. On stage this beat is a browser tab; the numbers are
-what matter.
+**Why `01c` includes a failure.** The apology message is the NIM endpoint's free-tier concurrency
+cap (`ResourceExhausted: Worker local total request limit reached (16/16)`), not a fault in the
+demo. It hit roughly one ask in six during rehearsal even at 45-second spacing, and it is the reason
+Scene 1 asks the question several times: the repetition is both the point of the scene and the cover
+for a bad response. The fix on stage is **Regenerate response**.
 
-An earlier version of the text file put "Wikipedia says 2014" on the line directly beneath the asks,
-where it read like a sixth answer from the model. It is not, and both files now keep the correct
-answer visually separate.
+`01d` is a *rendering of real API output*, not a screenshot of anything — the playground needs a
+login and cannot be captured headlessly. The five answers are genuine calls at temperature 1.0.
 
-Note this is the **Shape A** opening from the script (it varies). Rehearsals also produced Shape B —
-`2017` four times out of five, confidently wrong and consistent — and, once in about thirteen asks,
-Shape C: the model simply gets it right. All three need different opening lines and all three are in
-the script. Check which you have on the day.
+Note `01c` and `01d` are both **Shape A** (it varies). Rehearsals also produced Shape B — `2017` four
+times out of five, confidently wrong and consistent — and, about once in thirteen asks, Shape C: the
+model simply gets it right. All three need different opening lines and all three are in the script.
 
 ## Scene 2 — two agents, two services
 

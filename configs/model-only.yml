@@ -1,0 +1,55 @@
+# Scene 1 — the model on its own, served to the same chat UI as the planner.
+# Start with:  nat start fastapi --config_file configs/model-only.yml
+#
+# The point of the cold open is that the model answers from memory and cannot tell you
+# it is doing so. Showing that in the *same* interface as the working demo is far
+# stronger than cutting to a separate playground tab: same window, same question, and
+# the only difference is whether the agent can look anything up.
+#
+# `chat_completion` is a bare LLM call with no tools and no agent loop, which is the
+# whole idea. Do not be tempted to reuse the planner without the "Ask the researcher"
+# hint instead — measured, it delegates anyway and answers correctly, so there is no
+# wrong answer to show.
+#
+# No telemetry block: this one is deliberately not traced. There is nothing to trace but
+# a single model call, and keeping it out of Phoenix means the trace list in Scene 4
+# contains only the two things you want to talk about.
+
+general:
+  front_end:
+    _type: fastapi
+    host: localhost
+    port: 8002   # planner-ui.yml is on 8001; check both are free before you present
+    cors:
+      allow_origins:
+        - "http://localhost:3001"
+        - "http://127.0.0.1:3001"
+      allow_methods:
+        - "*"
+      allow_headers:
+        - "*"
+      allow_credentials: true
+
+llms:
+  nim_llm:
+    _type: nim
+    model_name: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
+    # Deliberately NOT temperature 0. The cold open depends on the answer moving around
+    # between regenerations, and at 0 it will repeat itself and the scene falls flat.
+    temperature: 1.0
+    max_tokens: 4096
+
+workflow:
+  _type: chat_completion
+  name: model-only
+  llm_name: nim_llm
+  # Nothing about tools, and nothing inviting hedging. The scene needs a confident,
+  # unqualified answer -- that confidence is the thing being demonstrated.
+  #
+  # The "no LaTeX" clause is not cosmetic: this reasoning model likes to wrap its final
+  # answer as \boxed{2015}, which lands in the chat window looking like a bug and pulls
+  # the room's attention to the wrong thing.
+  system_prompt: >-
+    You are a helpful assistant. Answer the user's question directly, in one short
+    sentence. Do not show your working. Do not use LaTeX, markdown, or any markup:
+    write the answer as plain prose.

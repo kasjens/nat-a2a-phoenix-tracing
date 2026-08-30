@@ -33,15 +33,23 @@ Running time is about seven minutes, plus questions.
 3. **Check the ports are free** before anything else: `ss -ltn | grep -E ':(8001|9002|3000|6006)'`
    should print nothing. The fastapi front end defaults to 8000, which OnlyOffice and plenty else
    will have taken — this repo uses 8001 for that reason.
-4. **Start the three services, in this order.** The planner resolves the researcher's agent card at
+4. **Start the services, in this order.** The planner resolves the researcher's agent card at
    startup, so the researcher must be listening first or the planner will not boot.
    ```bash
-   nat start a2a --config_file configs/researcher.yml           # terminal A, wait for it
-   nat start fastapi --config_file configs/planner-ui.yml       # terminal B
-   cd ui && npm run dev                                          # terminal C
+   nat start a2a --config_file configs/researcher.yml           # A: the researcher, wait for it
+   nat start fastapi --config_file configs/planner-ui.yml       # B: the planner, :8001
+   nat start fastapi --config_file configs/model-only.yml       # C: bare model, :8002
+   cd ui && npm run dev                                          # D: planner UI, :3000
+   cd ui-model-only && npm run dev                               # E: model UI, :3001
    ```
-   Confirm: `curl -s http://localhost:9002/.well-known/agent-card.json` and
-   `curl -s http://localhost:8001/health`.
+   Confirm: `curl -s http://localhost:9002/.well-known/agent-card.json`,
+   `curl -s http://localhost:8001/health`, `curl -s http://localhost:8002/health`.
+
+   The second UI is a copy of the first with three lines changed in its `.env`
+   (`NAT_BACKEND_URL` to `:8002`, `PORT` to `3001`, `NEXT_INTERNAL_URL` to `:3098`) and
+   `-p 3098` in its `dev:next` script. Symlink its `node_modules` at the first one rather
+   than installing twice. It exists so Scene 1 happens in the *same interface* as the rest
+   of the demo: two browser tabs, not a cut to a different website.
 5. Wipe Phoenix: `docker compose down -v && docker compose up -d`.
 6. **Bake the "before" trace.** With Phoenix clean, run the pair once from the CLI with the fix
    switched off. This leaves the two disconnected traces you point at in Scene 4, so you never run
@@ -53,7 +61,8 @@ Running time is about seven minutes, plus questions.
    ```
 7. **Do a full practice run through the UI** and leave that trace in Phoenix as your safety net. Do
    not wipe after this.
-8. **Two windows on screen:** the chat UI (left), Phoenix (right). Browser zoom 125 percent or more.
+8. **Three tabs, in order:** the model-only chat on `:3001`, the planner chat on `:3000`, Phoenix on
+   `:6006`. Browser zoom 125 percent or more.
 9. Ask the model the question a few times beforehand so you know what it is doing today — see
    Scene 1, because what it does changes the opening line you use.
 
@@ -71,48 +80,50 @@ Activate the venv in terminals A and B: `source .venv/bin/activate`, or
 
 ## Scene 1. The problem
 
-**Duration:** 45 seconds
-**On screen:** the model playground,
-https://build.nvidia.com/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning/playground
+**Duration:** 60 seconds
+**On screen:** the chat UI at http://localhost:3001 — headed **Model only**.
 
-Type in:
+This is the same chat window you will use for the rest of the demo, pointed at the same model with
+no tools attached. Say that, because it is the whole control in the experiment:
 
-> In which year did Computerworld publish its final print issue?
+> Same interface you will see in a minute. Same model. The only difference is that this one has
+> nothing to look things up with.
 
-Read the answer out, then **hit regenerate three or four times** and read those too.
+Type the question and send it:
+
+```
+In which year did Computerworld publish its final print issue?
+```
+
+Read the answer out. Then **send it again, twice more**, in the same thread.
 
 **You will get one of three shapes, and they need different lines.** Rehearse all three; you will
 not know which you have until you are on stage. The right answer is 2014 in every case — do not
 reveal it yet.
 
-**Shape A — it varies.** Different years across the regenerations. Earlier rehearsals gave 2013,
-2015, 2014, 2013.
+**Shape A — it varies.** Different years down the thread. Rehearsals gave 2013/2015/2014/2013 one
+day, 2015/2013/2015/2013/2019 another, and 2017 then 2013 in the chat window.
 
-> Four times, four answers.
+> Same question, three times, three answers. On the same screen, so you can see all of them at once.
 >
-> One of those is right. It does not know which one. It is not looking anything up, because it
+> One of those might be right. It does not know which. It is not looking anything up, because it
 > cannot. It is doing what you would do if someone asked you a date at a party and you did not want
 > to seem ignorant.
 
-**Shape B — it is consistent, and wrong.** This is what the most recent rehearsal gave: 2017, 2017,
-2012, 2017, 2017.
+**Shape B — it is consistent, and wrong.** One rehearsal gave 2017 four times out of five.
 
-> Four times, the same answer. Which is a problem, because it is wrong.
+> Three times, the same answer. Which is a problem, because it is wrong.
 >
-> That is worse than being unsure, and it is worse than being wrong occasionally. It is *reliably*
-> wrong, delivered with total confidence, and there is nothing in that answer to tell you so.
+> That is worse than being unsure and worse than being wrong occasionally. It is *reliably* wrong,
+> delivered with total confidence, and there is nothing in the answer to tell you so.
 
-**Shape C — it gets it right.** Rare but real: roughly 1 ask in 13 during rehearsal returned 2014.
-If it comes up in the cold open, do not pretend it did not. Regenerate once or twice more — it will
-almost certainly drift — and use the drift:
+**Shape C — it gets it right.** Rare but real: about 1 ask in 13. Send it again a couple of times;
+it will almost certainly drift, and the drift is the point:
 
-> And there it is. Same question, thirty seconds apart, a different answer.
->
-> Which is the whole problem in one screen. It was right the first time and it is wrong now, and
-> nothing about how it said either one tells you which was which.
+> And there it is. Same question, thirty seconds apart, a different answer. It was right the first
+> time and it is wrong now, and nothing about how it said either one tells you which was which.
 
-If it stubbornly repeats 2014, stop fighting it and reframe — the demo still works, because being
-right once is not the same as being reliable:
+If it stubbornly repeats 2014, reframe rather than fight it:
 
 > Today it knows this one. That is luck, not a method, and you cannot tell the difference from the
 > outside. Watch what happens when the agent is made to actually check.
@@ -122,7 +133,17 @@ Then, for any shape:
 > Notice it never once said "I am not sure". That is the problem worth solving. Not that the model
 > is stupid. That you cannot tell from the answer whether it knew or guessed.
 
-Do not labour it. Forty-five seconds and move.
+**If you get "I apologize, but I encountered an error".** That is the NIM endpoint refusing you, not
+the demo breaking — the free tier caps concurrent requests and this model is popular. Hit
+**Regenerate response**. It happened on roughly one ask in six during rehearsal, and it is why this
+scene asks the question several times rather than once: you have cover built in. Do not explain the
+error to the room; just regenerate and carry on.
+
+**Fallback:** if the endpoint is having a bad day, the model playground shows the same thing —
+https://build.nvidia.com/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning/playground. You lose the
+"same interface" framing, which is most of why this scene is in the UI at all.
+
+Do not labour it. A minute and move.
 
 ---
 

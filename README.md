@@ -374,6 +374,7 @@ Act two only. `NAT_DEMO_NO_STEP_RELAY=1` turns it off.
 | `configs/planner.yml` | **The demo, agent A.** `a2a_client_shared` function group pointed at :9002 |
 | `configs/chain.yml` | The simpler variant, and the fallback. Both agents in one process |
 | `configs/planner-ui.yml` | The planner served over HTTP, for driving it from a browser UI |
+| `configs/model-only.yml` | Scene 1: the bare model, no tools, so the cold open runs in the same UI |
 | `plugin/` | Five shims: two the demo cannot run without on 1.8.0, three optional. See below |
 | `docs/` | What we learned about nat 1.8.0 the hard way, with file:line receipts |
 | `screenshots/` | A full rehearsal, one capture per scene of the demo script |
